@@ -1,4 +1,4 @@
-using ClinicManagementSystem.Components;
+using ClinicManagementSystem.Blazor.Components;
 
 var builder = WebApplication.CreateBuilder(args);
 
