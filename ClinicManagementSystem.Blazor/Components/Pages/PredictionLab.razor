@@ -1,0 +1,75 @@
+@page "/predictions"
+@rendermode InteractiveServer
+@inject IPredictionService PredictionService
+@inject ILogger<PredictionLab> Logger
+@using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>No-Show Prediction</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenText TextStyle="TextStyle.H4">No-Show Prediction Lab</RadzenText>
+
+    <RadzenCard>
+        <RadzenTemplateForm TItem="NoShowPredictionInput" Data="@_input" Submit="@RunPrediction">
+            <RadzenRow Gap="1rem">
+                <RadzenColumn Size="4">
+                    <RadzenNumeric @bind-Value="_input.PatientAge" Min="0" Placeholder="Patient age" />
+                </RadzenColumn>
+                <RadzenColumn Size="4">
+                    <RadzenNumeric @bind-Value="_input.DaysBetweenBookingAndAppointment" Min="0"
+                                   Placeholder="Days between booking and appointment" />
+                </RadzenColumn>
+                <RadzenColumn Size="4">
+                    <RadzenNumeric @bind-Value="_input.PreviousNoShowCount" Min="0"
+                                   Placeholder="Previous no-show count" />
+                </RadzenColumn>
+                <RadzenColumn Size="4">
+                    <RadzenNumeric @bind-Value="_input.PreviousCompletedCount" Min="0"
+                                   Placeholder="Previous completed count" />
+                </RadzenColumn>
+                <RadzenColumn Size="4">
+                    <RadzenDropDown @bind-Value="_input.AppointmentType" Data="@(Enum.GetValues<AppointmentType>())" />
+                </RadzenColumn>
+                <RadzenColumn Size="4">
+                    <RadzenDropDown @bind-Value="_input.DayOfWeek" Data="@(Enum.GetValues<DayOfWeek>())" />
+                </RadzenColumn>
+                <RadzenColumn Size="3">
+                    <RadzenCheckBox @bind-Value="_input.HasInsurance" /> Has Insurance
+                </RadzenColumn>
+                <RadzenColumn Size="3">
+                    <RadzenCheckBox @bind-Value="_input.HasReminderSent" /> Reminder Sent
+                </RadzenColumn>
+                <RadzenColumn Size="12">
+                    <RadzenButton ButtonType="ButtonType.Submit" Text="Predict" Icon="psychology"
+                                  ButtonStyle="ButtonStyle.Primary" />
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenTemplateForm>
+    </RadzenCard>
+
+    @if (_output is not null)
+    {
+        <RadzenAlert AlertStyle="@(_output.WillNoShow? AlertStyle.Warning: AlertStyle.Success)" ShowIcon="true">
+            Risk: <strong>@_output.RiskLevel</strong> - Probability: @(_output.Probability * 100)%
+        </RadzenAlert>
+    }
+</RadzenStack>
+
+@code {
+    private readonly NoShowPredictionInput _input = new()
+    {
+        PatientAge = 30,
+        DayOfWeek = DayOfWeek.Monday,
+        AppointmentType =
+AppointmentType.General
+    };
+    private NoShowPredictionOutput? _output;
+
+    private async Task RunPrediction()
+    {
+        Logger.LogInformation("Running prediction from lab page");
+        _output = await PredictionService.PredictNoShowAsync(_input);
+    }
+}

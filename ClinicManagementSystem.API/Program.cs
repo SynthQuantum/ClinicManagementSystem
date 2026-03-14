@@ -1,18 +1,13 @@
-using ClinicManagementSystem.Blazor.Components;
 using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Services;
 using Microsoft.EntityFrameworkCore;
-using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Logging.ClearProviders();
-builder.Logging.AddConsole();
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
-builder.Services.AddRadzenComponents();
 builder.Services.AddDbContext<ClinicDbContext>(options =>
     options.UseSqlServer(
         builder.Configuration.GetConnectionString("ClinicDb"),
@@ -20,6 +15,7 @@ builder.Services.AddDbContext<ClinicDbContext>(options =>
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(10),
             errorNumbersToAdd: null)));
+
 builder.Services.AddClinicServices();
 
 var app = builder.Build();
@@ -48,20 +44,14 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment())
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
-app.UseStatusCodePagesWithReExecute("/not-found");
+
 app.UseHttpsRedirection();
-app.UseStaticFiles();
-
-app.UseAntiforgery();
-
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+app.UseAuthorization();
+app.MapControllers();
 
 app.Run();

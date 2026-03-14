@@ -1,3 +1,7 @@
 <Solution>
   <Project Path="ClinicManagementSystem.Blazor/ClinicManagementSystem.Blazor.csproj" />
+  <Project Path="ClinicManagementSystem.Models/ClinicManagementSystem.Models.csproj" />
+  <Project Path="ClinicManagementSystem.Data/ClinicManagementSystem.Data.csproj" />
+  <Project Path="ClinicManagementSystem.Services/ClinicManagementSystem.Services.csproj" />
+  <Project Path="ClinicManagementSystem.API/ClinicManagementSystem.API.csproj" />
 </Solution>

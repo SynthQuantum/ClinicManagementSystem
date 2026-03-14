@@ -1,0 +1,92 @@
+@page "/visit-records"
+@rendermode InteractiveServer
+@inject IVisitRecordService VisitRecordService
+@inject IPatientService PatientService
+@inject IStaffService StaffService
+@inject NotificationService NotificationService
+@inject ILogger<VisitRecords> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Visit Records</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenText TextStyle="TextStyle.H4">Visit Records</RadzenText>
+
+    <RadzenCard>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+            <RadzenDropDown @bind-Value="_selectedPatientId" Data="@_patients" TextProperty="FullName" ValueProperty="Id"
+                            Placeholder="Select patient" Change="@OnPatientChanged" Style="width: 320px" />
+            <RadzenButton Text="New Visit" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OpenCreate" Disabled="@(!_selectedPatientId.HasValue)" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <RadzenDataGrid Data="@_records" TItem="VisitRecord" AllowPaging="true" AllowSorting="true" PageSize="10">
+        <Columns>
+            <RadzenDataGridColumn TItem="VisitRecord" Property="VisitDate" Title="Date" FormatString="{0:yyyy-MM-dd HH:mm}" />
+            <RadzenDataGridColumn TItem="VisitRecord" Property="Diagnosis" Title="Diagnosis" />
+            <RadzenDataGridColumn TItem="VisitRecord" Property="Treatment" Title="Treatment" />
+            <RadzenDataGridColumn TItem="VisitRecord" Property="Prescription" Title="Prescription" />
+            <RadzenDataGridColumn TItem="VisitRecord" Title="Actions" Width="140px">
+                <Template Context="record">
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => DeleteRecord(record.Id))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+<RadzenNotification />
+
+@code {
+    private IEnumerable<Patient> _patients = [];
+    private IEnumerable<StaffMember> _staff = [];
+    private IEnumerable<VisitRecord> _records = [];
+    private Guid? _selectedPatientId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading visit records page");
+        _patients = await PatientService.GetAllAsync();
+        _staff = await StaffService.GetAllAsync();
+    }
+
+    private async Task OnPatientChanged(object _)
+    {
+        if (!_selectedPatientId.HasValue)
+        {
+            _records = [];
+            return;
+        }
+
+        _records = await VisitRecordService.GetByPatientAsync(_selectedPatientId.Value);
+    }
+
+    private async Task OpenCreate()
+    {
+        if (!_selectedPatientId.HasValue) return;
+        var staff = _staff.FirstOrDefault();
+        if (staff is null) return;
+
+        var record = new VisitRecord
+        {
+            PatientId = _selectedPatientId.Value,
+            StaffMemberId = staff.Id,
+            VisitDate = DateTime.UtcNow,
+            Diagnosis = "Initial evaluation"
+        };
+
+        await VisitRecordService.CreateAsync(record);
+        NotificationService.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Visit record created" });
+        _records = await VisitRecordService.GetByPatientAsync(_selectedPatientId.Value);
+    }
+
+    private async Task DeleteRecord(Guid id)
+    {
+        await VisitRecordService.DeleteAsync(id);
+        if (_selectedPatientId.HasValue)
+        {
+            _records = await VisitRecordService.GetByPatientAsync(_selectedPatientId.Value);
+        }
+    }
+}

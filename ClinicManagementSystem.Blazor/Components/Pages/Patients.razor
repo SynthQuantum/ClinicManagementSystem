@@ -1,0 +1,91 @@
+@page "/patients"
+@rendermode InteractiveServer
+@inject IPatientService PatientService
+@inject NavigationManager Nav
+@inject NotificationService Notify
+@inject ILogger<Patients> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Patients</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">Patients</RadzenText>
+        <RadzenButton Text="Add Patient" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OpenAddDialog" />
+    </RadzenStack>
+
+    <RadzenTextBox Placeholder="Search patients..." @bind-Value="_searchTerm" Change="@OnSearch" Style="width:300px" />
+
+    <RadzenDataGrid @ref="_grid" Data="@_patients" TItem="Patient"                    AllowSorting="true" AllowFiltering="false"
+                    AllowPaging="true" PageSize="15"                    IsLoading="@_loading">
+        <Columns>
+            <RadzenDataGridColumn TItem="Patient" Property="FullName" Title="Name" />
+            <RadzenDataGridColumn TItem="Patient" Property="DateOfBirth" Title="DOB" FormatString="{0:yyyy-MM-dd}" />
+            <RadzenDataGridColumn TItem="Patient" Property="Gender" Title="Gender" />
+            <RadzenDataGridColumn TItem="Patient" Property="PhoneNumber" Title="Phone" />
+            <RadzenDataGridColumn TItem="Patient" Property="Email" Title="Email" />
+            <RadzenDataGridColumn TItem="Patient" Property="HasInsurance" Title="Insurance" Width="90px">
+                <Template Context="patient">
+                    <RadzenIcon Icon="@(patient.HasInsurance ? "check_circle" : "cancel")"
+                                Style="@(patient.HasInsurance ? "color:green" : "color:red")" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Patient" Title="Actions" Width="150px" Sortable="false">
+                <Template Context="patient">
+                    <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Click="@(() => Nav.NavigateTo($"/patients/{patient.Id}"))" />
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
+                                  Click="@(() => OpenEditDialog(patient))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                  Click="@(() => ConfirmDelete(patient))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+<!-- Add / Edit Dialog -->
+<RadzenDialog />
+<RadzenNotification />
+
+@code {
+    private RadzenDataGrid<Patient>? _grid;
+    private IEnumerable<Patient> _patients = [];
+    private bool _loading = true;
+    private string _searchTerm = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading patients page");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _patients = string.IsNullOrWhiteSpace(_searchTerm)
+            ? await PatientService.GetAllAsync()
+            : await PatientService.SearchAsync(_searchTerm);
+        _loading = false;
+        Logger.LogInformation("Loaded {Count} patients", _patients.Count());
+    }
+
+    private async Task OnSearch(string value)
+    {
+        _searchTerm = value;
+        await LoadAsync();
+    }
+
+    private void OpenAddDialog() => Nav.NavigateTo("/patients/new");
+
+    private void OpenEditDialog(Patient patient) => Nav.NavigateTo($"/patients/{patient.Id}/edit");
+
+    private async Task ConfirmDelete(Patient patient)
+    {
+        Logger.LogInformation("Deleting patient {PatientId}", patient.Id);
+        await PatientService.DeleteAsync(patient.Id);
+        await LoadAsync();
+    }
+}
