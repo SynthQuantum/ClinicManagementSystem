@@ -1,0 +1,169 @@
+@page "/patients/new"
+@page "/patients/{Id:guid}/edit"
+@rendermode InteractiveServer
+@inject IPatientService PatientService
+@inject NavigationManager Nav
+@inject NotificationService Notify
+@inject ILogger<PatientForm> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>@(_isNew ? "Add Patient" : "Edit Patient")</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">@(_isNew ? "Add Patient" : "Edit Patient")</RadzenText>
+        <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
+                      Click="@(() => Nav.NavigateTo("/patients"))" />
+    </RadzenStack>
+
+    <RadzenCard>
+        <RadzenTemplateForm TItem="Patient" Data="@_patient" Submit="@OnSubmit">
+            <RadzenRow Gap="1rem">
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="First Name" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.FirstName" Name="FirstName" />
+                        <RadzenRequiredValidator Component="FirstName" Text="First name is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Last Name" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.LastName" Name="LastName" />
+                        <RadzenRequiredValidator Component="LastName" Text="Last name is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Date of Birth" Style="width:100%">
+                        <RadzenDatePicker @bind-Value="_patient.DateOfBirth" Name="DateOfBirth"
+                                          DateFormat="yyyy-MM-dd" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Gender" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_patient.Gender" Data="@(Enum.GetValues<Gender>())"
+                                        Name="Gender" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Phone" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.PhoneNumber" Name="Phone" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Email" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.Email" Name="Email" InputType="InputType.Email" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenFormField Text="Address" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.Address" Name="Address" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Blood Type" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.BloodType" Name="BloodType" />
+                    </RadzenFormField>
+                </RadzenColumn>
+
+                <RadzenColumn SizeXS="12">
+                    <RadzenText TextStyle="TextStyle.Subtitle1">Insurance</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Insurance Provider" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.InsuranceProvider" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Policy Number" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.InsurancePolicyNumber" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Insurance Expiry" Style="width:100%">
+                        <RadzenDatePicker @bind-Value="_patient.InsuranceExpiryDate" DateFormat="yyyy-MM-dd" />
+                    </RadzenFormField>
+                </RadzenColumn>
+
+                <RadzenColumn SizeXS="12">
+                    <RadzenText TextStyle="TextStyle.Subtitle1">Emergency Contact</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="4">
+                    <RadzenFormField Text="Name" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.EmergencyContactName" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="4">
+                    <RadzenFormField Text="Phone" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.EmergencyContactPhone" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="4">
+                    <RadzenFormField Text="Relationship" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_patient.EmergencyContactRelationship" />
+                    </RadzenFormField>
+                </RadzenColumn>
+
+                <RadzenColumn SizeXS="12">
+                    <RadzenFormField Text="Notes" Style="width:100%">
+                        <RadzenTextArea @bind-Value="_patient.Notes" Rows="3" />
+                    </RadzenFormField>
+                </RadzenColumn>
+
+                <RadzenColumn SizeXS="12">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save" Icon="save"
+                                      ButtonStyle="ButtonStyle.Primary" />
+                        <RadzenButton Text="Cancel" Icon="cancel" ButtonStyle="ButtonStyle.Light"
+                                      Click="@(() => Nav.NavigateTo("/patients"))" />
+                    </RadzenStack>
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</RadzenStack>
+
+<RadzenNotification />
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private Patient _patient = new();
+    private bool _isNew = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            Logger.LogInformation("Loading patient {PatientId} for edit", Id);
+            var existing = await PatientService.GetByIdAsync(Id.Value);
+            if (existing is not null)
+            {
+                _patient = existing;
+                _isNew = false;
+            }
+        }
+        else
+        {
+            Logger.LogInformation("Opening new patient form");
+        }
+    }
+
+    private async Task OnSubmit(Patient patient)
+    {
+        if (_isNew)
+        {
+            Logger.LogInformation("Creating new patient");
+            await PatientService.CreateAsync(patient);
+            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Patient created" });
+        }
+        else
+        {
+            Logger.LogInformation("Updating patient {PatientId}", patient.Id);
+            await PatientService.UpdateAsync(patient);
+            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Patient updated" });
+        }
+        Nav.NavigateTo("/patients");
+    }
+}

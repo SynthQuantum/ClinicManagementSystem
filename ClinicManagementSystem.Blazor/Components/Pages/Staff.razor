@@ -1,0 +1,63 @@
+@page "/staff"
+@rendermode InteractiveServer
+@inject IStaffService StaffService
+@inject NavigationManager Nav
+@inject ILogger<Staff> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Staff</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">Staff Members</RadzenText>
+        <RadzenButton Text="Add Staff Member" Icon="add" ButtonStyle="ButtonStyle.Primary"
+                      Click="@(() => Nav.NavigateTo("/staff/new"))" />
+    </RadzenStack>
+
+    <RadzenDataGrid Data="@_staff" TItem="StaffMember"                    AllowSorting="true" AllowPaging="true" PageSize="15"
+                    IsLoading="@_loading">
+        <Columns>
+            <RadzenDataGridColumn TItem="StaffMember" Property="FullName" Title="Name" />
+            <RadzenDataGridColumn TItem="StaffMember" Property="Role" Title="Role" />
+            <RadzenDataGridColumn TItem="StaffMember" Property="Specialty" Title="Specialty" />
+            <RadzenDataGridColumn TItem="StaffMember" Property="Email" Title="Email" />
+            <RadzenDataGridColumn TItem="StaffMember" Property="PhoneNumber" Title="Phone" />
+            <RadzenDataGridColumn TItem="StaffMember" Property="IsAvailable" Title="Available" Width="100px">
+                <Template Context="s">
+                    <RadzenIcon Icon="@(s.IsAvailable ? "check_circle" : "cancel")"
+                                Style="@(s.IsAvailable ? "color:green" : "color:red")" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="StaffMember" Title="Actions" Width="120px" Sortable="false">
+                <Template Context="s">
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
+                                  Click="@(() => Nav.NavigateTo($"/staff/{s.Id}/edit"))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                  Click="@(() => DeleteStaff(s.Id))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+@code {
+    private IEnumerable<StaffMember> _staff = [];
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading staff page");
+        _staff = await StaffService.GetAllAsync();
+        _loading = false;
+        Logger.LogInformation("Loaded {Count} staff members", _staff.Count());
+    }
+
+    private async Task DeleteStaff(Guid id)
+    {
+        Logger.LogInformation("Deleting staff member {Id}", id);
+        await StaffService.DeleteAsync(id);
+        _staff = await StaffService.GetAllAsync();
+    }
+}

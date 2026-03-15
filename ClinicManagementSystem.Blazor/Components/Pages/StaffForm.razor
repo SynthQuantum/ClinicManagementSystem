@@ -1,0 +1,110 @@
+@page "/staff/new"
+@page "/staff/{Id:guid}/edit"
+@rendermode InteractiveServer
+@inject IStaffService StaffService
+@inject NavigationManager Nav
+@inject NotificationService Notify
+@inject ILogger<StaffForm> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>@(_isNew ? "Add Staff Member" : "Edit Staff Member")</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">@(_isNew ? "Add Staff Member" : "Edit Staff Member")</RadzenText>
+        <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
+                      Click="@(() => Nav.NavigateTo("/staff"))" />
+    </RadzenStack>
+
+    <RadzenCard>
+        <RadzenTemplateForm TItem="StaffMember" Data="@_staff" Submit="@OnSubmit">
+            <RadzenRow Gap="1rem">
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="First Name" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_staff.FirstName" Name="FirstName" />
+                        <RadzenRequiredValidator Component="FirstName" Text="First name is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Last Name" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_staff.LastName" Name="LastName" />
+                        <RadzenRequiredValidator Component="LastName" Text="Last name is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Email" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_staff.Email" Name="Email" InputType="InputType.Email" />
+                        <RadzenRequiredValidator Component="Email" Text="Email is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Phone" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_staff.PhoneNumber" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Role" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_staff.Role" Data="@(Enum.GetValues<UserRole>())" Name="Role" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Specialty" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_staff.Specialty" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenSwitch @bind-Value="_staff.IsAvailable" /> Available
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save" Icon="save" ButtonStyle="ButtonStyle.Primary" />
+                        <RadzenButton Text="Cancel" Icon="cancel" ButtonStyle="ButtonStyle.Light"
+                                      Click="@(() => Nav.NavigateTo("/staff"))" />
+                    </RadzenStack>
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</RadzenStack>
+
+<RadzenNotification />
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private StaffMember _staff = new();
+    private bool _isNew = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Id.HasValue)
+        {
+            Logger.LogInformation("Loading staff member {Id} for edit", Id);
+            var existing = await StaffService.GetByIdAsync(Id.Value);
+            if (existing is not null)
+            {
+                _staff = existing;
+                _isNew = false;
+            }
+        }
+    }
+
+    private async Task OnSubmit(StaffMember staff)
+    {
+        if (_isNew)
+        {
+            Logger.LogInformation("Creating staff member");
+            await StaffService.CreateAsync(staff);
+            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Staff member created" });
+        }
+        else
+        {
+            Logger.LogInformation("Updating staff member {Id}", staff.Id);
+            await StaffService.UpdateAsync(staff);
+            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Staff member updated" });
+        }
+        Nav.NavigateTo("/staff");
+    }
+}

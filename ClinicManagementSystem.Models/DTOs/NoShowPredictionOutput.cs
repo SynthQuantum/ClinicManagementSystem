@@ -1,0 +1,8 @@
+namespace ClinicManagementSystem.Models.DTOs;
+
+public class NoShowPredictionOutput
+{
+    public bool WillNoShow { get; set; }
+    public decimal Probability { get; set; }
+    public string RiskLevel { get; set; } = string.Empty; // Low, Medium, High
+}

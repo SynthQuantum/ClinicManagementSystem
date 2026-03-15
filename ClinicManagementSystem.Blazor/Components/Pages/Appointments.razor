@@ -1,0 +1,108 @@
+@page "/appointments"
+@rendermode InteractiveServer
+@inject IAppointmentService AppointmentService
+@inject NavigationManager Nav
+@inject ILogger<Appointments> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Appointments</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">Appointments</RadzenText>
+        <RadzenButton Text="New Appointment" Icon="add" ButtonStyle="ButtonStyle.Primary"
+                      Click="@(() => Nav.NavigateTo("/appointments/new"))" />
+    </RadzenStack>
+
+    <!-- Date filter -->
+    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
+        <RadzenFormField Text="Filter Date">
+            <RadzenDatePicker @bind-Value="_filterDate" DateFormat="yyyy-MM-dd" Change="@OnDateChanged" />
+        </RadzenFormField>
+        <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Light" Click="@ClearFilter" />
+    </RadzenStack>
+
+    <RadzenDataGrid Data="@_appointments" TItem="Appointment"                    AllowSorting="true" AllowPaging="true" PageSize="15"
+                    IsLoading="@_loading">
+        <Columns>
+            <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
+                                  FormatString="{0:yyyy-MM-dd}" />
+            <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Start" />
+            <RadzenDataGridColumn TItem="Appointment" Property="EndTime" Title="End" />
+            <RadzenDataGridColumn TItem="Appointment" Property="Patient.FullName" Title="Patient" />
+            <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Doctor" />
+            <RadzenDataGridColumn TItem="Appointment" Property="AppointmentType" Title="Type" />
+            <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status">
+                <Template Context="appt">
+                    <RadzenBadge BadgeStyle="@GetBadgeStyle(appt.Status)" Text="@appt.Status.ToString()" />
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Appointment" Property="IsPredictedNoShow" Title="No-Show Risk" Width="130px">
+                <Template Context="appt">
+                    @if (appt.IsPredictedNoShow)
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="High Risk" />
+                    }
+                    else
+                    {
+                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Low Risk" />
+                    }
+                </Template>
+            </RadzenDataGridColumn>
+            <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="120px" Sortable="false">
+                <Template Context="appt">
+                    <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}"))" />
+                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
+                                  Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}/edit"))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+@code {
+    private IEnumerable<Appointment> _appointments = [];
+    private bool _loading = true;
+    private DateTime? _filterDate;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading appointments page");
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _appointments = _filterDate.HasValue
+            ? await AppointmentService.GetByDateAsync(_filterDate.Value)
+            : await AppointmentService.GetAllAsync();
+        _loading = false;
+        Logger.LogInformation("Loaded {Count} appointments", _appointments.Count());
+    }
+
+    private async Task OnDateChanged(DateTime? date)
+    {
+        _filterDate = date;
+        await LoadAsync();
+    }
+
+    private async Task ClearFilter()
+    {
+        _filterDate = null;
+        await LoadAsync();
+    }
+
+    private static BadgeStyle GetBadgeStyle(AppointmentStatus status) => status switch
+    {
+        AppointmentStatus.Completed => BadgeStyle.Success,
+        AppointmentStatus.Cancelled => BadgeStyle.Warning,
+        AppointmentStatus.NoShow => BadgeStyle.Danger,
+        AppointmentStatus.Scheduled => BadgeStyle.Info,
+        _ => BadgeStyle.Secondary
+    };
+}

@@ -1,0 +1,101 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@inject IDashboardService DashboardService
+@inject ILogger<Home> Logger
+@using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Dashboard — Clinic Management System</PageTitle>
+
+<RadzenStack Gap="1rem">
+
+    <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
+
+    @if (_summary is null)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else
+    {
+        <!-- KPI Cards -->
+        <RadzenRow Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Total Patients</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.TotalPatients</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Total Appointments</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.TotalAppointments</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Today</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.TodayAppointments</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Completed</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.CompletedAppointments</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Cancelled</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.CancelledAppointments</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">No-Show Rate</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.NoShowRate%</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <!-- Appointment Trend Chart -->
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Appointment Trend (Last 30 Days)</RadzenText>
+            <RadzenChart>
+                <RadzenLineSeries Data="@_trend" CategoryProperty="Date" ValueProperty="Count" Title="Appointments">
+                    <RadzenSeriesDataLabels Visible="false" />
+                </RadzenLineSeries>
+                <RadzenCategoryAxis FormatString="{0:MMM dd}" />
+                <RadzenValueAxis />
+                <RadzenLegend Visible="true" />
+            </RadzenChart>
+        </RadzenCard>
+
+        <!-- Staff Workload Table -->
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Staff Workload</RadzenText>
+            <RadzenDataGrid Data="@_workload" TItem="StaffWorkloadSummary" AllowSorting="true">
+                <Columns>
+                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="StaffName" Title="Staff Member" />
+                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="TotalAppointments" Title="Total" />
+                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="CompletedAppointments" Title="Completed" />
+                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="NoShows" Title="No-Shows" />
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    private DashboardSummary? _summary;
+    private IEnumerable<AppointmentTrendPoint> _trend = [];
+    private IEnumerable<StaffWorkloadSummary> _workload = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading dashboard");
+        _summary = await DashboardService.GetSummaryAsync();
+        _trend = await DashboardService.GetAppointmentTrendAsync(30);
+        _workload = await DashboardService.GetStaffWorkloadAsync();
+        Logger.LogInformation("Dashboard loaded successfully");
+    }
+}

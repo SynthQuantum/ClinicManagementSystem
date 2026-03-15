@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.12" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
+    <ProjectReference Include="..\ClinicManagementSystem.Data\ClinicManagementSystem.Data.csproj" />
+  </ItemGroup>
+
+</Project>

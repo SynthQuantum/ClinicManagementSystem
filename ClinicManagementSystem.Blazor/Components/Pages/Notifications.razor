@@ -1,0 +1,51 @@
+@page "/notifications"
+@rendermode InteractiveServer
+@inject INotificationService NotificationData
+@inject ILogger<Notifications> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Notifications</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">Pending Notifications</RadzenText>
+        <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="@LoadAsync" />
+    </RadzenStack>
+
+    <RadzenDataGrid Data="@_pending" TItem="Notification" AllowPaging="true" PageSize="10">
+        <Columns>
+            <RadzenDataGridColumn TItem="Notification" Property="ScheduledFor" Title="Scheduled" FormatString="{0:yyyy-MM-dd HH:mm}" />
+            <RadzenDataGridColumn TItem="Notification" Property="Recipient" Title="Recipient" />
+            <RadzenDataGridColumn TItem="Notification" Property="NotificationType" Title="Type" />
+            <RadzenDataGridColumn TItem="Notification" Property="Status" Title="Status" />
+            <RadzenDataGridColumn TItem="Notification" Property="Message" Title="Message" />
+            <RadzenDataGridColumn TItem="Notification" Title="Actions" Width="110px">
+                <Template Context="item">
+                    <RadzenButton Icon="send" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small" Click="@(() => Send(item.Id))" />
+                </Template>
+            </RadzenDataGridColumn>
+        </Columns>
+    </RadzenDataGrid>
+</RadzenStack>
+
+@code {
+    private IEnumerable<Notification> _pending = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        Logger.LogInformation("Loading pending notifications");
+        _pending = await NotificationData.GetPendingAsync();
+    }
+
+    private async Task Send(Guid id)
+    {
+        await NotificationData.SendAsync(id);
+        await LoadAsync();
+    }
+}

@@ -1,0 +1,178 @@
+@page "/appointments/new"
+@page "/appointments/{Id:guid}/edit"
+@rendermode InteractiveServer
+@inject IAppointmentService AppointmentService
+@inject IPatientService PatientService
+@inject IStaffService StaffService
+@inject IPredictionService PredictionService
+@inject NavigationManager Nav
+@inject NotificationService Notify
+@inject ILogger<AppointmentForm> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>@(_isNew ? "New Appointment" : "Edit Appointment")</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">@(_isNew ? "New Appointment" : "Edit Appointment")</RadzenText>
+        <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
+                      Click="@(() => Nav.NavigateTo("/appointments"))" />
+    </RadzenStack>
+
+    @if (_prediction is not null)
+    {
+        <RadzenAlert AlertStyle="@(_prediction.WillNoShow ? AlertStyle.Danger : AlertStyle.Success)" ShowIcon="true">
+            No-Show Prediction: <strong>@_prediction.RiskLevel Risk</strong> (@(Math.Round(_prediction.Probability * 100, 1))%)
+        </RadzenAlert>
+    }
+
+    <RadzenCard>
+        <RadzenTemplateForm TItem="Appointment" Data="@_appointment" Submit="@OnSubmit">
+            <RadzenRow Gap="1rem">
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Patient" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_appointment.PatientId"
+                                        Data="@_patients" TextProperty="FullName" ValueProperty="Id"
+                                        Name="PatientId" Placeholder="Select patient" />
+                        <RadzenRequiredValidator Component="PatientId" Text="Patient is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Doctor / Staff" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_appointment.StaffMemberId"
+                                        Data="@_staff" TextProperty="FullName" ValueProperty="Id"
+                                        Name="StaffMemberId" Placeholder="Select staff" />
+                        <RadzenRequiredValidator Component="StaffMemberId" Text="Staff is required" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Appointment Type" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_appointment.AppointmentType"
+                                        Data="@(Enum.GetValues<AppointmentType>())" Name="AppointmentType" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6">
+                    <RadzenFormField Text="Status" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_appointment.Status"
+                                        Data="@(Enum.GetValues<AppointmentStatus>())" Name="Status" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="4">
+                    <RadzenFormField Text="Date" Style="width:100%">
+                        <RadzenDatePicker @bind-Value="_appointment.AppointmentDate" Name="AppointmentDate" DateFormat="yyyy-MM-dd" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="4">
+                    <RadzenFormField Text="Start Time" Style="width:100%">
+                        <RadzenDatePicker @bind-Value="_startTimeBind" ShowTime="true" ShowSeconds="false"
+                                          TimeOnly="true" DateFormat="HH:mm" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="4">
+                    <RadzenFormField Text="End Time" Style="width:100%">
+                        <RadzenDatePicker @bind-Value="_endTimeBind" ShowTime="true" ShowSeconds="false"
+                                          TimeOnly="true" DateFormat="HH:mm" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenFormField Text="Reason" Style="width:100%">
+                        <RadzenTextBox @bind-Value="_appointment.Reason" />
+                    </RadzenFormField>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenFormField Text="Notes" Style="width:100%">
+                        <RadzenTextArea @bind-Value="_appointment.Notes" Rows="3" />
+                    </RadzenFormField>
+                </RadzenColumn>
+
+                <RadzenColumn SizeXS="12">
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save" Icon="save" ButtonStyle="ButtonStyle.Primary" />
+                        <RadzenButton Text="Predict No-Show" Icon="psychology" ButtonStyle="ButtonStyle.Warning"
+                                      ButtonType="ButtonType.Button" Click="@RunPrediction" />
+                        <RadzenButton Text="Cancel" Icon="cancel" ButtonStyle="ButtonStyle.Light"
+                                      Click="@(() => Nav.NavigateTo("/appointments"))" />
+                    </RadzenStack>
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenTemplateForm>
+    </RadzenCard>
+</RadzenStack>
+
+<RadzenNotification />
+
+@code {
+    [Parameter] public Guid? Id { get; set; }
+
+    private Appointment _appointment = new() { AppointmentDate = DateTime.Today };
+    private IEnumerable<Patient> _patients = [];
+    private IEnumerable<StaffMember> _staff = [];
+    private bool _isNew = true;
+    private NoShowPredictionOutput? _prediction;
+
+    // Radzen DatePicker binds to DateTime for time-only usage
+    private DateTime _startTimeBind = DateTime.Today.AddHours(9);
+    private DateTime _endTimeBind = DateTime.Today.AddHours(9).AddMinutes(30);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading appointment form");
+        _patients = await PatientService.GetAllAsync();
+        _staff = await StaffService.GetAllAsync();
+
+        if (Id.HasValue)
+        {
+            var existing = await AppointmentService.GetByIdAsync(Id.Value);
+            if (existing is not null)
+            {
+                _appointment = existing;
+                _isNew = false;
+                _startTimeBind = DateTime.Today.Add(_appointment.StartTime);
+                _endTimeBind = DateTime.Today.Add(_appointment.EndTime);
+            }
+        }
+    }
+
+    private async Task OnSubmit(Appointment appointment)
+    {
+        appointment.StartTime = _startTimeBind.TimeOfDay;
+        appointment.EndTime = _endTimeBind.TimeOfDay;
+
+        if (_isNew)
+        {
+            Logger.LogInformation("Creating appointment");
+            await AppointmentService.CreateAsync(appointment);
+            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment created" });
+        }
+        else
+        {
+            Logger.LogInformation("Updating appointment {Id}", appointment.Id);
+            await AppointmentService.UpdateAsync(appointment);
+            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment updated" });
+        }
+        Nav.NavigateTo("/appointments");
+    }
+
+    private async Task RunPrediction()
+    {
+        var patient = _patients.FirstOrDefault(p => p.Id == _appointment.PatientId);
+        if (patient is null) return;
+
+        Logger.LogInformation("Running no-show prediction for patient {PatientId}", patient.Id);
+        var input = new NoShowPredictionInput
+        {
+            PatientAge = patient.Age,
+            DaysBetweenBookingAndAppointment = (int)(_appointment.AppointmentDate - DateTime.Today).TotalDays,
+            AppointmentType = _appointment.AppointmentType,
+            DayOfWeek = _appointment.AppointmentDate.DayOfWeek,
+            HasInsurance = patient.HasInsurance,
+            HasReminderSent = _appointment.ReminderSent
+        };
+        _prediction = await PredictionService.PredictNoShowAsync(input);
+        _appointment.IsPredictedNoShow = _prediction.WillNoShow;
+        _appointment.NoShowProbability = _prediction.Probability;
+    }
+}

@@ -1,0 +1,173 @@
+@page "/patients/{Id:guid}"
+@rendermode InteractiveServer
+@inject IPatientService PatientService
+@inject IAppointmentService AppointmentService
+@inject IVisitRecordService VisitRecordService
+@inject NavigationManager Nav
+@inject ILogger<PatientDetail> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Patient Detail</PageTitle>
+
+@if (_patient is null)
+{
+    <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else
+{
+    <RadzenStack Gap="1rem">
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                     AlignItems="AlignItems.Center">
+            <RadzenText TextStyle="TextStyle.H4">@_patient.FullName</RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                <RadzenButton Text="Edit" Icon="edit" ButtonStyle="ButtonStyle.Secondary"
+                              Click="@(() => Nav.NavigateTo($"/patients/{_patient.Id}/edit"))" />
+                <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
+                              Click="@(() => Nav.NavigateTo("/patients"))" />
+            </RadzenStack>
+        </RadzenStack>
+
+        <RadzenTabs>
+            <Tabs>
+                <!-- Demographics -->
+                <RadzenTabsItem Text="Demographics">
+                    <RadzenCard>
+                        <RadzenRow Gap="1rem">
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Date of Birth">
+                                    <RadzenText>@_patient.DateOfBirth.ToString("yyyy-MM-dd")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Age">
+                                    <RadzenText>@_patient.Age</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Gender">
+                                    <RadzenText>@_patient.Gender</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Blood Type">
+                                    <RadzenText>@(_patient.BloodType ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Phone">
+                                    <RadzenText>@(_patient.PhoneNumber ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Email">
+                                    <RadzenText>@(_patient.Email ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12">
+                                <RadzenFormField Text="Address">
+                                    <RadzenText>@(_patient.Address ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenCard>
+                </RadzenTabsItem>
+
+                <!-- Insurance -->
+                <RadzenTabsItem Text="Insurance">
+                    <RadzenCard>
+                        <RadzenRow Gap="1rem">
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Provider">
+                                    <RadzenText>@(_patient.InsuranceProvider ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Policy Number">
+                                    <RadzenText>@(_patient.InsurancePolicyNumber ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Expiry Date">
+                                    <RadzenText>@(_patient.InsuranceExpiryDate?.ToString("yyyy-MM-dd") ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenCard>
+                </RadzenTabsItem>
+
+                <!-- Emergency Contact -->
+                <RadzenTabsItem Text="Emergency Contact">
+                    <RadzenCard>
+                        <RadzenRow Gap="1rem">
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Name">
+                                    <RadzenText>@(_patient.EmergencyContactName ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Phone">
+                                    <RadzenText>@(_patient.EmergencyContactPhone ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="6">
+                                <RadzenFormField Text="Relationship">
+                                    <RadzenText>@(_patient.EmergencyContactRelationship ?? "—")</RadzenText>
+                                </RadzenFormField>
+                            </RadzenColumn>
+                        </RadzenRow>
+                    </RadzenCard>
+                </RadzenTabsItem>
+
+                <!-- Appointments -->
+                <RadzenTabsItem Text="Appointments">
+                    <RadzenDataGrid Data="@_appointments" TItem="Appointment" AllowSorting="true" AllowPaging="true"
+                                    PageSize="10">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
+                                                  FormatString="{0:yyyy-MM-dd}" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Time" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="AppointmentType" Title="Type" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Doctor" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenTabsItem>
+
+                <!-- Visit Records -->
+                <RadzenTabsItem Text="Visit Records">
+                    <RadzenDataGrid Data="@_visitRecords" TItem="VisitRecord" AllowSorting="true" AllowPaging="true"
+                                    PageSize="10">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="VisitRecord" Property="VisitDate" Title="Date"
+                                                  FormatString="{0:yyyy-MM-dd}" />
+                            <RadzenDataGridColumn TItem="VisitRecord" Property="Diagnosis" Title="Diagnosis" />
+                            <RadzenDataGridColumn TItem="VisitRecord" Property="Treatment" Title="Treatment" />
+                            <RadzenDataGridColumn TItem="VisitRecord" Property="StaffMember.FullName" Title="Doctor" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenTabsItem>
+            </Tabs>
+        </RadzenTabs>
+    </RadzenStack>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Patient? _patient;
+    private IEnumerable<Appointment> _appointments = [];
+    private IEnumerable<VisitRecord> _visitRecords = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading patient detail for {PatientId}", Id);
+        _patient = await PatientService.GetByIdAsync(Id);
+        if (_patient is not null)
+        {
+            _appointments = await AppointmentService.GetByPatientAsync(Id);
+            _visitRecords = await VisitRecordService.GetByPatientAsync(Id);
+        }
+        Logger.LogInformation("Patient detail loaded for {PatientId}", Id);
+    }
+}
