@@ -6,6 +6,11 @@ using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
 
+if (builder.Environment.IsEnvironment("Localhost"))
+{
+    builder.WebHost.UseStaticWebAssets();
+}
+
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
@@ -52,16 +57,16 @@ using (var scope = app.Services.CreateScope())
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found");
+
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+app.MapStaticAssets();
 
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .WithStaticAssets();
 
 app.Run();
