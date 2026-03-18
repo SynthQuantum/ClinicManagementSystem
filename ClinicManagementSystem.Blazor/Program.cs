@@ -6,7 +6,7 @@ using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
 
-if (builder.Environment.IsEnvironment("Localhost"))
+if (builder.Environment.IsEnvironment("Development"))
 {
     builder.WebHost.UseStaticWebAssets();
 }

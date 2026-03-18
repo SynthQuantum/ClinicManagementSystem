@@ -8,20 +8,10 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5081",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Localhost"
+        "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
     "https": {
-      "commandName": "Project",
-      "dotnetRunMessages": true,
-      "launchBrowser": true,
-      "launchUrl": "swagger",
-      "applicationUrl": "https://localhost:7281;http://localhost:5081",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Localhost"
-      }
-    },
-    "https-development": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,
