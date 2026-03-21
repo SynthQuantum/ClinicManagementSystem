@@ -3,5 +3,17 @@
   <Project Path="ClinicManagementSystem.Models/ClinicManagementSystem.Models.csproj" />
   <Project Path="ClinicManagementSystem.Data/ClinicManagementSystem.Data.csproj" />
   <Project Path="ClinicManagementSystem.Services/ClinicManagementSystem.Services.csproj" />
+  <Folder Name="/tests/">
+    <Project Path="tests/ClinicManagementSystem.API.Tests/ClinicManagementSystem.API.Tests.csproj" />
+    <Project
+      Path="tests/ClinicManagementSystem.API.IntegrationTests/ClinicManagementSystem.API.IntegrationTests.csproj" />
+    <Project
+      Path="tests/ClinicManagementSystem.Blazor.Tests/ClinicManagementSystem.Blazor.Tests.csproj" />
+    <Project Path="tests/ClinicManagementSystem.Data.Tests/ClinicManagementSystem.Data.Tests.csproj" />
+    <Project
+      Path="tests/ClinicManagementSystem.Models.Tests/ClinicManagementSystem.Models.Tests.csproj" />
+    <Project
+      Path="tests/ClinicManagementSystem.Services.Tests/ClinicManagementSystem.Services.Tests.csproj" />
+  </Folder>
   <Project Path="ClinicManagementSystem.API/ClinicManagementSystem.API.csproj" />
 </Solution>
