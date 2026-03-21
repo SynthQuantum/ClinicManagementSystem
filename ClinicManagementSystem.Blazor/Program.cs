@@ -37,8 +37,17 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
         if (db.Database.GetMigrations().Any())
         {
-            db.Database.Migrate();
-            logger.LogInformation("Database migration completed successfully.");
+            var hasPendingMigrations = db.Database.GetPendingMigrations().Any();
+            if (hasPendingMigrations)
+            {
+                db.Database.Migrate();
+                logger.LogInformation("Database migration completed successfully.");
+                await DevelopmentDataSeeder.SeedAsync(db, logger);
+            }
+            else
+            {
+                logger.LogInformation("No pending migrations. Skipping seed.");
+            }
         }
         else
         {
