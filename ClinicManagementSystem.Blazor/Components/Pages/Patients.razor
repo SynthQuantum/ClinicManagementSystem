@@ -18,8 +18,16 @@
 
     <RadzenTextBox Placeholder="Search patients..." @bind-Value="_searchTerm" Change="@OnSearch" Style="width:300px" />
 
-    <RadzenDataGrid @ref="_grid" Data="@_patients" TItem="Patient"                    AllowSorting="true" AllowFiltering="false"
-                    AllowPaging="true" PageSize="15"                    IsLoading="@_loading">
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            Failed to load patients. @_error
+        </RadzenAlert>
+        <RadzenButton Text="Retry" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadAsync" />
+    }
+
+    <RadzenDataGrid @ref="_grid" Data="@_patients" TItem="Patient" AllowSorting="true" AllowFiltering="false"
+                    AllowPaging="true" PageSize="15" IsLoading="@_loading">
         <Columns>
             <RadzenDataGridColumn TItem="Patient" Property="FullName" Title="Name" />
             <RadzenDataGridColumn TItem="Patient" Property="DateOfBirth" Title="DOB" FormatString="{0:yyyy-MM-dd}" />
@@ -43,6 +51,9 @@
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
+        <EmptyTemplate>
+            <RadzenText TextStyle="TextStyle.Body2">No patients found.</RadzenText>
+        </EmptyTemplate>
     </RadzenDataGrid>
 </RadzenStack>
 
@@ -55,6 +66,7 @@
     private IEnumerable<Patient> _patients = [];
     private bool _loading = true;
     private string _searchTerm = string.Empty;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
@@ -65,11 +77,24 @@
     private async Task LoadAsync()
     {
         _loading = true;
-        _patients = string.IsNullOrWhiteSpace(_searchTerm)
-            ? await PatientService.GetAllAsync()
-            : await PatientService.SearchAsync(_searchTerm);
-        _loading = false;
-        Logger.LogInformation("Loaded {Count} patients", _patients.Count());
+        _error = null;
+        try
+        {
+            _patients = string.IsNullOrWhiteSpace(_searchTerm)
+                ? await PatientService.GetAllAsync()
+                : await PatientService.SearchAsync(_searchTerm);
+            Logger.LogInformation("Loaded {Count} patients", _patients.Count());
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _patients = [];
+            Logger.LogError(ex, "Failed to load patients");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnSearch(string value)

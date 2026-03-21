@@ -1,0 +1,183 @@
+@page "/appointments/{Id:guid}"
+@rendermode InteractiveServer
+@inject IAppointmentService AppointmentService
+@inject IPredictionService PredictionService
+@inject NavigationManager Nav
+@inject ILogger<AppointmentDetail> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Appointment Details</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">Appointment Details</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="Predict Risk" Icon="psychology" ButtonStyle="ButtonStyle.Warning"
+                          Click="RunPrediction" />
+            <RadzenButton Text="Edit" Icon="edit" ButtonStyle="ButtonStyle.Secondary"
+                          Click="@(() => Nav.NavigateTo($"/appointments/{Id}/edit"))" />
+            <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
+                          Click="@(() => Nav.NavigateTo("/appointments"))" />
+        </RadzenStack>
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            Failed to load appointment details. @_error
+        </RadzenAlert>
+    }
+    else if (_appointment is null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+            Appointment not found.
+        </RadzenAlert>
+    }
+    else
+    {
+        @if (_prediction is not null)
+        {
+            <RadzenAlert
+                AlertStyle="@(_prediction.RiskLevel == "High" ? AlertStyle.Danger : _prediction.RiskLevel == "Medium" ? AlertStyle.Warning : AlertStyle.Success)"
+                ShowIcon="true">
+                <strong>No-Show Risk: @_prediction.RiskLevel</strong> (@(Math.Round(_prediction.Probability * 100, 1))%)
+                <br />
+                Recommendation: @_prediction.Recommendation
+            </RadzenAlert>
+        }
+
+        <RadzenCard>
+            <RadzenRow Gap="1rem">
+                <RadzenColumn SizeXS="12" SizeMD="6">
+                    <RadzenText TextStyle="TextStyle.Overline">Patient</RadzenText>
+                    <RadzenText>@(_appointment.Patient?.FullName ?? "N/A")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="6">
+                    <RadzenText TextStyle="TextStyle.Overline">Staff</RadzenText>
+                    <RadzenText>@(_appointment.StaffMember?.FullName ?? "N/A")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Date</RadzenText>
+                    <RadzenText>@_appointment.AppointmentDate.ToString("yyyy-MM-dd")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Start</RadzenText>
+                    <RadzenText>@_appointment.StartTime</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">End</RadzenText>
+                    <RadzenText>@_appointment.EndTime</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Type</RadzenText>
+                    <RadzenText>@_appointment.AppointmentType</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Status</RadzenText>
+                    <RadzenBadge BadgeStyle="@GetBadgeStyle(_appointment.Status)" Text="@_appointment.Status.ToString()" />
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">No-Show Risk</RadzenText>
+                    <RadzenBadge BadgeStyle="@GetRiskBadgeStyle(_appointment.NoShowProbability)"
+                                 Text="@GetRiskLabel(_appointment.NoShowProbability)" />
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenText TextStyle="TextStyle.Overline">Reason</RadzenText>
+                    <RadzenText>@(_appointment.Reason ?? "N/A")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenText TextStyle="TextStyle.Overline">Notes</RadzenText>
+                    <RadzenText>@(_appointment.Notes ?? "No notes")</RadzenText>
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenCard>
+
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">
+                Inference is local and private. This appointment can be scored with ML.NET and stored for workflow tracking.
+            </RadzenText>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Appointment? _appointment;
+    private NoShowPredictionOutput? _prediction;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading appointment detail {AppointmentId}", Id);
+        try
+        {
+            _appointment = await AppointmentService.GetByIdAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Failed to load appointment detail {AppointmentId}", Id);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RunPrediction()
+    {
+        _error = null;
+        try
+        {
+            _prediction = await PredictionService.PredictNoShowForAppointmentAsync(Id, persistResult: true);
+            _appointment = await AppointmentService.GetByIdAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Failed to run no-show prediction for appointment {AppointmentId}", Id);
+        }
+    }
+
+    private static BadgeStyle GetBadgeStyle(AppointmentStatus status) => status switch
+    {
+        AppointmentStatus.Completed => BadgeStyle.Success,
+        AppointmentStatus.Cancelled => BadgeStyle.Warning,
+        AppointmentStatus.NoShow => BadgeStyle.Danger,
+        AppointmentStatus.Scheduled => BadgeStyle.Info,
+        _ => BadgeStyle.Secondary
+    };
+
+    private static string GetRiskLabel(decimal? probability)
+    {
+        if (!probability.HasValue)
+        {
+            return "Not Scored";
+        }
+
+        var value = (double)probability.Value;
+        return value < 0.40 ? "Low" : value <= 0.70 ? "Medium" : "High";
+    }
+
+    private static BadgeStyle GetRiskBadgeStyle(decimal? probability)
+    {
+        return GetRiskLabel(probability) switch
+        {
+            "High" => BadgeStyle.Danger,
+            "Medium" => BadgeStyle.Warning,
+            "Low" => BadgeStyle.Success,
+            _ => BadgeStyle.Secondary
+        };
+    }
+}

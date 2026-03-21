@@ -11,9 +11,22 @@
 
     <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
 
-    @if (_summary is null)
+    @if (_loading)
     {
         <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            Failed to load dashboard data. @_error
+        </RadzenAlert>
+        <RadzenButton Text="Retry" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadDashboard" />
+    }
+    else if (_summary is null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+            Dashboard summary is currently unavailable.
+        </RadzenAlert>
     }
     else
     {
@@ -55,32 +68,64 @@
                     <RadzenText TextStyle="TextStyle.H5">@_summary.NoShowRate%</RadzenText>
                 </RadzenCard>
             </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">No-Show Count</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.NoShowAppointments</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
         </RadzenRow>
 
         <!-- Appointment Trend Chart -->
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.H6">Appointment Trend (Last 30 Days)</RadzenText>
-            <RadzenChart>
-                <RadzenLineSeries Data="@_trend" CategoryProperty="Date" ValueProperty="Count" Title="Appointments">
-                    <RadzenSeriesDataLabels Visible="false" />
-                </RadzenLineSeries>
-                <RadzenCategoryAxis FormatString="{0:MMM dd}" />
-                <RadzenValueAxis />
-                <RadzenLegend Visible="true" />
-            </RadzenChart>
+            @if (_trend.Any())
+            {
+                <RadzenChart>
+                    <RadzenLineSeries Data="@_trend" CategoryProperty="Date" ValueProperty="Count" Title="Appointments">
+                        <RadzenSeriesDataLabels Visible="false" />
+                    </RadzenLineSeries>
+                    <RadzenCategoryAxis FormatString="{0:MMM dd}" />
+                    <RadzenValueAxis />
+                    <RadzenLegend Visible="true" />
+                </RadzenChart>
+            }
+            else
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+                    No appointment trend data available yet.
+                </RadzenAlert>
+            }
         </RadzenCard>
 
         <!-- Staff Workload Table -->
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.H6">Staff Workload</RadzenText>
-            <RadzenDataGrid Data="@_workload" TItem="StaffWorkloadSummary" AllowSorting="true">
-                <Columns>
-                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="StaffName" Title="Staff Member" />
-                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="TotalAppointments" Title="Total" />
-                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="CompletedAppointments" Title="Completed" />
-                    <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="NoShows" Title="No-Shows" />
-                </Columns>
-            </RadzenDataGrid>
+            @if (_workload.Any())
+            {
+                <RadzenDataGrid Data="@_workload" TItem="StaffWorkloadSummary" AllowSorting="true">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="StaffName" Title="Staff Member" />
+                        <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="TotalAppointments" Title="Total" />
+                        <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="CompletedAppointments" Title="Completed" />
+                        <RadzenDataGridColumn TItem="StaffWorkloadSummary" Property="NoShows" Title="No-Shows" />
+                    </Columns>
+                </RadzenDataGrid>
+            }
+            else
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+                    No staff workload data available yet.
+                </RadzenAlert>
+            }
+        </RadzenCard>
+
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">
+                This section will show patient no-show risk and schedule optimization suggestions once the ML.NET model is
+                integrated.
+            </RadzenText>
         </RadzenCard>
     }
 </RadzenStack>
@@ -89,13 +134,34 @@
     private DashboardSummary? _summary;
     private IEnumerable<AppointmentTrendPoint> _trend = [];
     private IEnumerable<StaffWorkloadSummary> _workload = [];
+    private bool _loading = true;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadDashboard();
+    }
+
+    private async Task LoadDashboard()
+    {
         Logger.LogInformation("Loading dashboard");
-        _summary = await DashboardService.GetSummaryAsync();
-        _trend = await DashboardService.GetAppointmentTrendAsync(30);
-        _workload = await DashboardService.GetStaffWorkloadAsync();
-        Logger.LogInformation("Dashboard loaded successfully");
+        _loading = true;
+        _error = null;
+        try
+        {
+            _summary = await DashboardService.GetSummaryAsync();
+            _trend = await DashboardService.GetAppointmentTrendAsync(30);
+            _workload = await DashboardService.GetStaffWorkloadAsync();
+            Logger.LogInformation("Dashboard loaded successfully");
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Dashboard failed to load");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 }

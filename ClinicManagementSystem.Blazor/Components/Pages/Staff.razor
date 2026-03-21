@@ -16,7 +16,15 @@
                       Click="@(() => Nav.NavigateTo("/staff/new"))" />
     </RadzenStack>
 
-    <RadzenDataGrid Data="@_staff" TItem="StaffMember"                    AllowSorting="true" AllowPaging="true" PageSize="15"
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            Failed to load staff members. @_error
+        </RadzenAlert>
+        <RadzenButton Text="Retry" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadStaff" />
+    }
+
+    <RadzenDataGrid Data="@_staff" TItem="StaffMember" AllowSorting="true" AllowPaging="true" PageSize="15"
                     IsLoading="@_loading">
         <Columns>
             <RadzenDataGridColumn TItem="StaffMember" Property="FullName" Title="Name" />
@@ -39,25 +47,48 @@
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
+        <EmptyTemplate>
+            <RadzenText TextStyle="TextStyle.Body2">No staff members found.</RadzenText>
+        </EmptyTemplate>
     </RadzenDataGrid>
 </RadzenStack>
 
 @code {
     private IEnumerable<StaffMember> _staff = [];
     private bool _loading = true;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
+        await LoadStaff();
+    }
+
+    private async Task LoadStaff()
+    {
         Logger.LogInformation("Loading staff page");
-        _staff = await StaffService.GetAllAsync();
-        _loading = false;
-        Logger.LogInformation("Loaded {Count} staff members", _staff.Count());
+        _loading = true;
+        _error = null;
+        try
+        {
+            _staff = await StaffService.GetAllAsync();
+            Logger.LogInformation("Loaded {Count} staff members", _staff.Count());
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _staff = [];
+            Logger.LogError(ex, "Failed to load staff members");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task DeleteStaff(Guid id)
     {
         Logger.LogInformation("Deleting staff member {Id}", id);
         await StaffService.DeleteAsync(id);
-        _staff = await StaffService.GetAllAsync();
+        await LoadStaff();
     }
 }

@@ -1,20 +1,31 @@
 using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Services;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+        options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-builder.Services.AddDbContext<ClinicDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("ClinicDb"),
-        sqlOptions => sqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 5,
-            maxRetryDelay: TimeSpan.FromSeconds(10),
-            errorNumbersToAdd: null)));
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddDbContext<ClinicDbContext>(options =>
+        options.UseInMemoryDatabase("ClinicManagementSystemApiTesting"));
+}
+else
+{
+    builder.Services.AddDbContext<ClinicDbContext>(options =>
+        options.UseSqlServer(
+            builder.Configuration.GetConnectionString("ClinicDb"),
+            sqlOptions => sqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(10),
+                errorNumbersToAdd: null)));
+}
 
 builder.Services.AddClinicServices();
 
@@ -26,15 +37,32 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
-        if (db.Database.GetMigrations().Any())
+        if (db.Database.IsRelational())
         {
-            db.Database.Migrate();
-            logger.LogInformation("Database migration completed successfully.");
+            if (db.Database.GetMigrations().Any())
+            {
+                var hasPendingMigrations = db.Database.GetPendingMigrations().Any();
+                if (hasPendingMigrations)
+                {
+                    db.Database.Migrate();
+                    logger.LogInformation("Database migration completed successfully.");
+                    await DevelopmentDataSeeder.SeedAsync(db, logger);
+                }
+                else
+                {
+                    logger.LogInformation("No pending migrations. Skipping seed.");
+                }
+            }
+            else
+            {
+                db.Database.EnsureCreated();
+                logger.LogInformation("Database created with EnsureCreated (no migrations found).");
+            }
         }
         else
         {
             db.Database.EnsureCreated();
-            logger.LogInformation("Database created with EnsureCreated (no migrations found).");
+            logger.LogInformation("Database created with EnsureCreated for non-relational provider.");
         }
     }
     catch (Exception ex)
@@ -55,3 +83,5 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program;

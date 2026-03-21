@@ -7,19 +7,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.12" />
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.12" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.12">
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.5" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.5" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
+    <ProjectReference
+      Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
     <ProjectReference Include="..\ClinicManagementSystem.Data\ClinicManagementSystem.Data.csproj" />
-    <ProjectReference Include="..\ClinicManagementSystem.Services\ClinicManagementSystem.Services.csproj" />
+    <ProjectReference
+      Include="..\ClinicManagementSystem.Services\ClinicManagementSystem.Services.csproj" />
   </ItemGroup>
 
 </Project>

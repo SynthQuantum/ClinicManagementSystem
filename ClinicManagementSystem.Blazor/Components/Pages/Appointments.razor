@@ -1,6 +1,7 @@
 @page "/appointments"
 @rendermode InteractiveServer
 @inject IAppointmentService AppointmentService
+@inject IStaffService StaffService
 @inject NavigationManager Nav
 @inject ILogger<Appointments> Logger
 @using ClinicManagementSystem.Models.Entities
@@ -17,15 +18,31 @@
                       Click="@(() => Nav.NavigateTo("/appointments/new"))" />
     </RadzenStack>
 
-    <!-- Date filter -->
+    <!-- Filters -->
     <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
         <RadzenFormField Text="Filter Date">
             <RadzenDatePicker @bind-Value="_filterDate" DateFormat="yyyy-MM-dd" Change="@OnDateChanged" />
         </RadzenFormField>
+        <RadzenFormField Text="Status">
+            <RadzenDropDown @bind-Value="_filterStatus"                            Data="@(Enum.GetValues<AppointmentStatus>())"                            AllowClear="true"
+                            Change="@(_ => ApplyFilters())"                            Placeholder="Any status" />
+        </RadzenFormField>
+        <RadzenFormField Text="Staff">
+            <RadzenDropDown @bind-Value="_filterStaffId"                            Data="@_staff"                            TextProperty="FullName"                            ValueProperty="Id"
+                            AllowClear="true"                            Change="@(_ => LoadAsync())"                            Placeholder="Any staff" />
+        </RadzenFormField>
         <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Light" Click="@ClearFilter" />
     </RadzenStack>
 
-    <RadzenDataGrid Data="@_appointments" TItem="Appointment"                    AllowSorting="true" AllowPaging="true" PageSize="15"
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            Failed to load appointments. @_error
+        </RadzenAlert>
+        <RadzenButton Text="Retry" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadAsync" />
+    }
+
+    <RadzenDataGrid Data="@_appointments" TItem="Appointment" AllowSorting="true" AllowPaging="true" PageSize="15"
                     IsLoading="@_loading">
         <Columns>
             <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
@@ -52,49 +69,110 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="120px" Sortable="false">
+            <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="140px" Sortable="false">
                 <Template Context="appt">
                     <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
                                   Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}"))" />
                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
                                   Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}/edit"))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                  Click="@(() => DeleteAppointment(appt.Id))" />
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
+        <EmptyTemplate>
+            <RadzenText TextStyle="TextStyle.Body2">No appointments found for the selected filters.</RadzenText>
+        </EmptyTemplate>
     </RadzenDataGrid>
 </RadzenStack>
 
+<RadzenNotification />
+
 @code {
+    private List<Appointment> _allAppointments = [];
     private IEnumerable<Appointment> _appointments = [];
+    private IEnumerable<StaffMember> _staff = [];
     private bool _loading = true;
     private DateTime? _filterDate;
+    private AppointmentStatus? _filterStatus;
+    private Guid? _filterStaffId;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Loading appointments page");
+        _staff = await StaffService.GetAllAsync();
         await LoadAsync();
     }
 
     private async Task LoadAsync()
     {
         _loading = true;
-        _appointments = _filterDate.HasValue
-            ? await AppointmentService.GetByDateAsync(_filterDate.Value)
-            : await AppointmentService.GetAllAsync();
-        _loading = false;
-        Logger.LogInformation("Loaded {Count} appointments", _appointments.Count());
+        _error = null;
+        try
+        {
+            _allAppointments = _filterStaffId.HasValue
+                ? (await AppointmentService.GetByStaffAsync(_filterStaffId.Value)).ToList()
+                : (await AppointmentService.GetAllAsync()).ToList();
+
+            ApplyFilters();
+            Logger.LogInformation("Loaded {Count} appointments", _appointments.Count());
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            _appointments = [];
+            _allAppointments = [];
+            Logger.LogError(ex, "Failed to load appointments");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task OnDateChanged(DateTime? date)
     {
         _filterDate = date;
-        await LoadAsync();
+        ApplyFilters();
+        await Task.CompletedTask;
     }
 
     private async Task ClearFilter()
     {
         _filterDate = null;
+        _filterStatus = null;
+        _filterStaffId = null;
         await LoadAsync();
+    }
+
+    private async Task DeleteAppointment(Guid id)
+    {
+        Logger.LogInformation("Deleting appointment {AppointmentId}", id);
+        await AppointmentService.DeleteAsync(id);
+        await LoadAsync();
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<Appointment> query = _allAppointments;
+
+        if (_filterDate.HasValue)
+        {
+            var date = _filterDate.Value.Date;
+            query = query.Where(a => a.AppointmentDate.Date == date);
+        }
+
+        if (_filterStatus.HasValue)
+        {
+            var status = _filterStatus.Value;
+            query = query.Where(a => a.Status == status);
+        }
+
+        _appointments = query
+            .OrderBy(a => a.AppointmentDate)
+            .ThenBy(a => a.StartTime)
+            .ToList();
     }
 
     private static BadgeStyle GetBadgeStyle(AppointmentStatus status) => status switch

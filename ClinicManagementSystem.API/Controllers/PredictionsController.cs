@@ -23,4 +23,34 @@ public class PredictionsController : ControllerBase
         _logger.LogInformation("API: no-show prediction requested");
         return Ok(await _predictionService.PredictNoShowAsync(input));
     }
+
+    [HttpPost("no-show/appointment/{appointmentId:guid}")]
+    public async Task<ActionResult<NoShowPredictionOutput>> PredictNoShowForAppointment(Guid appointmentId, [FromQuery] bool persist = true)
+    {
+        _logger.LogInformation("API: no-show prediction requested for appointment {AppointmentId}", appointmentId);
+        try
+        {
+            return Ok(await _predictionService.PredictNoShowForAppointmentAsync(appointmentId, persist));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
+    [HttpPost("no-show/dataset")]
+    public async Task<ActionResult<NoShowDatasetGenerationResult>> GenerateNoShowDataset([FromQuery] int rows = 1200, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("API: no-show synthetic dataset generation requested. Rows={Rows}", rows);
+        var result = await _predictionService.GenerateNoShowDatasetAsync(rows, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("no-show/train")]
+    public async Task<ActionResult<NoShowTrainingResult>> TrainNoShowModel([FromQuery] string? datasetPath = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("API: no-show model training requested");
+        var result = await _predictionService.TrainNoShowModelAsync(datasetPath, cancellationToken);
+        return Ok(result);
+    }
 }

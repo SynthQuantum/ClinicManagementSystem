@@ -25,9 +25,26 @@
     @if (_prediction is not null)
     {
         <RadzenAlert AlertStyle="@(_prediction.WillNoShow ? AlertStyle.Danger : AlertStyle.Success)" ShowIcon="true">
-            No-Show Prediction: <strong>@_prediction.RiskLevel Risk</strong> (@(Math.Round(_prediction.Probability * 100, 1))%)
+            No-Show Prediction: <strong>@_prediction.RiskLevel Risk</strong>
+            (@(Math.Round(_prediction.Probability * 100, 1))%)
+            <br />
+            Recommendation: @_prediction.Recommendation
         </RadzenAlert>
     }
+
+    @if (!string.IsNullOrWhiteSpace(_conflictWarning))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+            @_conflictWarning
+        </RadzenAlert>
+    }
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2">
+            This screen runs local ML.NET no-show inference when a trained model is available, with automatic rule-based fallback.
+        </RadzenText>
+    </RadzenCard>
 
     <RadzenCard>
         <RadzenTemplateForm TItem="Appointment" Data="@_appointment" Submit="@OnSubmit">
@@ -112,6 +129,7 @@
     private IEnumerable<StaffMember> _staff = [];
     private bool _isNew = true;
     private NoShowPredictionOutput? _prediction;
+    private string? _conflictWarning;
 
     // Radzen DatePicker binds to DateTime for time-only usage
     private DateTime _startTimeBind = DateTime.Today.AddHours(9);
@@ -138,22 +156,47 @@
 
     private async Task OnSubmit(Appointment appointment)
     {
+        _conflictWarning = null;
         appointment.StartTime = _startTimeBind.TimeOfDay;
         appointment.EndTime = _endTimeBind.TimeOfDay;
+        try
+        {
+            if (_isNew)
+            {
+                Logger.LogInformation("Creating appointment");
+                await AppointmentService.CreateAsync(appointment);
+                Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment created" });
+            }
+            else
+            {
+                Logger.LogInformation("Updating appointment {Id}", appointment.Id);
+                await AppointmentService.UpdateAsync(appointment);
+                Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment updated" });
+            }
 
-        if (_isNew)
-        {
-            Logger.LogInformation("Creating appointment");
-            await AppointmentService.CreateAsync(appointment);
-            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment created" });
+            Nav.NavigateTo("/appointments");
         }
-        else
+        catch (ArgumentException ex)
         {
-            Logger.LogInformation("Updating appointment {Id}", appointment.Id);
-            await AppointmentService.UpdateAsync(appointment);
-            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment updated" });
+            Notify.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Validation error",
+                Detail = ex.Message,
+                Duration = 5000
+            });
         }
-        Nav.NavigateTo("/appointments");
+        catch (InvalidOperationException ex)
+        {
+            _conflictWarning = ex.Message;
+            Notify.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Scheduling conflict",
+                Detail = ex.Message,
+                Duration = 6000
+            });
+        }
     }
 
     private async Task RunPrediction()
