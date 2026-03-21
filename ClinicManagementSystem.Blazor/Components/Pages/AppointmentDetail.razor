@@ -1,0 +1,123 @@
+@page "/appointments/{Id:guid}"
+@rendermode InteractiveServer
+@inject IAppointmentService AppointmentService
+@inject NavigationManager Nav
+@inject ILogger<AppointmentDetail> Logger
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>Appointment Details</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">Appointment Details</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="Edit" Icon="edit" ButtonStyle="ButtonStyle.Secondary"
+                          Click="@(() => Nav.NavigateTo($"/appointments/{Id}/edit"))" />
+            <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
+                          Click="@(() => Nav.NavigateTo("/appointments"))" />
+        </RadzenStack>
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            Failed to load appointment details. @_error
+        </RadzenAlert>
+    }
+    else if (_appointment is null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+            Appointment not found.
+        </RadzenAlert>
+    }
+    else
+    {
+        <RadzenCard>
+            <RadzenRow Gap="1rem">
+                <RadzenColumn SizeXS="12" SizeMD="6">
+                    <RadzenText TextStyle="TextStyle.Overline">Patient</RadzenText>
+                    <RadzenText>@(_appointment.Patient?.FullName ?? "N/A")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="6">
+                    <RadzenText TextStyle="TextStyle.Overline">Staff</RadzenText>
+                    <RadzenText>@(_appointment.StaffMember?.FullName ?? "N/A")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Date</RadzenText>
+                    <RadzenText>@_appointment.AppointmentDate.ToString("yyyy-MM-dd")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Start</RadzenText>
+                    <RadzenText>@_appointment.StartTime</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">End</RadzenText>
+                    <RadzenText>@_appointment.EndTime</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Type</RadzenText>
+                    <RadzenText>@_appointment.AppointmentType</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">Status</RadzenText>
+                    <RadzenBadge BadgeStyle="@GetBadgeStyle(_appointment.Status)" Text="@_appointment.Status.ToString()" />
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeMD="4">
+                    <RadzenText TextStyle="TextStyle.Overline">No-Show Risk</RadzenText>
+                    <RadzenBadge BadgeStyle="@(_appointment.IsPredictedNoShow? BadgeStyle.Danger: BadgeStyle.Success)"
+                                 Text="@(_appointment.IsPredictedNoShow ? "High" : "Low")" />
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenText TextStyle="TextStyle.Overline">Reason</RadzenText>
+                    <RadzenText>@(_appointment.Reason ?? "N/A")</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12">
+                    <RadzenText TextStyle="TextStyle.Overline">Notes</RadzenText>
+                    <RadzenText>@(_appointment.Notes ?? "No notes")</RadzenText>
+                </RadzenColumn>
+            </RadzenRow>
+        </RadzenCard>
+    }
+</RadzenStack>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Appointment? _appointment;
+    private bool _loading = true;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Loading appointment detail {AppointmentId}", Id);
+        try
+        {
+            _appointment = await AppointmentService.GetByIdAsync(Id);
+        }
+        catch (Exception ex)
+        {
+            _error = ex.Message;
+            Logger.LogError(ex, "Failed to load appointment detail {AppointmentId}", Id);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static BadgeStyle GetBadgeStyle(AppointmentStatus status) => status switch
+    {
+        AppointmentStatus.Completed => BadgeStyle.Success,
+        AppointmentStatus.Cancelled => BadgeStyle.Warning,
+        AppointmentStatus.NoShow => BadgeStyle.Danger,
+        AppointmentStatus.Scheduled => BadgeStyle.Info,
+        _ => BadgeStyle.Secondary
+    };
+}

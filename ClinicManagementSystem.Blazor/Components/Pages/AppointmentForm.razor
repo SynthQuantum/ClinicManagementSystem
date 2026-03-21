@@ -29,6 +29,20 @@
         </RadzenAlert>
     }
 
+    @if (!string.IsNullOrWhiteSpace(_conflictWarning))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
+            @_conflictWarning
+        </RadzenAlert>
+    }
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2">
+            Current prediction uses a placeholder flow and will be replaced with ML.NET model-backed insights in the next phase.
+        </RadzenText>
+    </RadzenCard>
+
     <RadzenCard>
         <RadzenTemplateForm TItem="Appointment" Data="@_appointment" Submit="@OnSubmit">
             <RadzenRow Gap="1rem">
@@ -112,6 +126,7 @@
     private IEnumerable<StaffMember> _staff = [];
     private bool _isNew = true;
     private NoShowPredictionOutput? _prediction;
+    private string? _conflictWarning;
 
     // Radzen DatePicker binds to DateTime for time-only usage
     private DateTime _startTimeBind = DateTime.Today.AddHours(9);
@@ -138,6 +153,7 @@
 
     private async Task OnSubmit(Appointment appointment)
     {
+        _conflictWarning = null;
         appointment.StartTime = _startTimeBind.TimeOfDay;
         appointment.EndTime = _endTimeBind.TimeOfDay;
         try
@@ -169,6 +185,7 @@
         }
         catch (InvalidOperationException ex)
         {
+            _conflictWarning = ex.Message;
             Notify.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Error,
