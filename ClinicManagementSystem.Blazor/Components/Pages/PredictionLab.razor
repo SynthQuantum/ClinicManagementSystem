@@ -1,6 +1,7 @@
 @page "/predictions"
 @rendermode InteractiveServer
 @inject IPredictionService PredictionService
+@inject NavigationManager Nav
 @inject ILogger<PredictionLab> Logger
 @using ClinicManagementSystem.Models.DTOs
 @using ClinicManagementSystem.Models.Enums
@@ -11,35 +12,64 @@
 <RadzenStack Gap="1rem">
     <RadzenText TextStyle="TextStyle.H4">No-Show Prediction Lab</RadzenText>
 
+    <RadzenButton Text="View ML Metrics" Icon="bar_chart" ButtonStyle="ButtonStyle.Light"
+                  Click="@(() => Nav.NavigateTo("/predictions/metrics"))" />
+
     <RadzenCard>
         <RadzenTemplateForm TItem="NoShowPredictionInput" Data="@_input" Submit="@RunPrediction">
             <RadzenRow Gap="1rem">
                 <RadzenColumn Size="4">
-                    <RadzenNumeric @bind-Value="_input.PatientAge" Min="0" Placeholder="Patient age" />
+                    <RadzenFormField Text="Patient Age" Style="width:100%">
+                        <RadzenNumeric @bind-Value="_input.PatientAge" Min="0" Placeholder="Patient age" Style="width:100%"
+                                       title="Patient age at appointment date; used to estimate attendance behavior." />
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="4">
-                    <RadzenNumeric @bind-Value="_input.DaysBetweenBookingAndAppointment" Min="0"
-                                   Placeholder="Days between booking and appointment" />
+                    <RadzenFormField Text="Wait Time (Days)" Style="width:100%">
+                        <RadzenNumeric @bind-Value="_input.DaysBetweenBookingAndAppointment" Min="0"
+                                       Placeholder="Days between booking and appointment" Style="width:100%"
+                                       title="Number of days between booking and appointment; longer waits may increase no-show risk." />
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="4">
-                    <RadzenNumeric @bind-Value="_input.PreviousNoShowCount" Min="0"
-                                   Placeholder="Previous no-show count" />
+                    <RadzenFormField Text="Previous No-Shows" Style="width:100%">
+                        <RadzenNumeric @bind-Value="_input.PreviousNoShowCount" Min="0"
+                                       Placeholder="Previous no-show count" Style="width:100%"
+                                       title="How many appointments this patient previously missed without attending." />
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="4">
-                    <RadzenNumeric @bind-Value="_input.PreviousCompletedCount" Min="0"
-                                   Placeholder="Previous completed count" />
+                    <RadzenFormField Text="Previous Completed Visits" Style="width:100%">
+                        <RadzenNumeric @bind-Value="_input.PreviousCompletedCount" Min="0"
+                                       Placeholder="Previous completed count" Style="width:100%"
+                                       title="How many visits this patient completed successfully in the past." />
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="4">
-                    <RadzenDropDown @bind-Value="_input.AppointmentType" Data="@(Enum.GetValues<AppointmentType>())" />
+                    <RadzenFormField Text="Appointment Type" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_input.AppointmentType" Data="@(Enum.GetValues<AppointmentType>())" Style="width:100%"
+                                        title="Type of visit; some categories have different attendance patterns." />
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="4">
-                    <RadzenDropDown @bind-Value="_input.DayOfWeek" Data="@(Enum.GetValues<DayOfWeek>())" />
+                    <RadzenFormField Text="Day of Week" Style="width:100%">
+                        <RadzenDropDown @bind-Value="_input.DayOfWeek" Data="@(Enum.GetValues<DayOfWeek>())" Style="width:100%"
+                                        title="Scheduled day of week for the appointment." />
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="3">
-                    <RadzenCheckBox @bind-Value="_input.HasInsurance" /> Has Insurance
+                    <RadzenFormField Text="Insurance" Style="width:100%">
+                        <div title="Whether the patient has active insurance coverage.">
+                            <RadzenCheckBox @bind-Value="_input.HasInsurance" /> Has Insurance
+                        </div>
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="3">
-                    <RadzenCheckBox @bind-Value="_input.HasReminderSent" /> Reminder Sent
+                    <RadzenFormField Text="Reminder" Style="width:100%">
+                        <div title="Whether a reminder has been sent for this appointment.">
+                            <RadzenCheckBox @bind-Value="_input.HasReminderSent" /> Reminder Sent
+                        </div>
+                    </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="12">
                     <RadzenButton ButtonType="ButtonType.Submit" Text="Predict" Icon="psychology"

@@ -24,6 +24,20 @@ public class PredictionsController : ControllerBase
         return Ok(await _predictionService.PredictNoShowAsync(input));
     }
 
+    [HttpPost("no-show/appointment/{appointmentId:guid}")]
+    public async Task<ActionResult<NoShowPredictionOutput>> PredictNoShowForAppointment(Guid appointmentId, [FromQuery] bool persist = true)
+    {
+        _logger.LogInformation("API: no-show prediction requested for appointment {AppointmentId}", appointmentId);
+        try
+        {
+            return Ok(await _predictionService.PredictNoShowForAppointmentAsync(appointmentId, persist));
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+    }
+
     [HttpPost("no-show/dataset")]
     public async Task<ActionResult<NoShowDatasetGenerationResult>> GenerateNoShowDataset([FromQuery] int rows = 1200, CancellationToken cancellationToken = default)
     {

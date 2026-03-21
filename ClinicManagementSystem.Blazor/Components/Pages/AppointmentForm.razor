@@ -25,7 +25,10 @@
     @if (_prediction is not null)
     {
         <RadzenAlert AlertStyle="@(_prediction.WillNoShow ? AlertStyle.Danger : AlertStyle.Success)" ShowIcon="true">
-            No-Show Prediction: <strong>@_prediction.RiskLevel Risk</strong> (@(Math.Round(_prediction.Probability * 100, 1))%)
+            No-Show Prediction: <strong>@_prediction.RiskLevel Risk</strong>
+            (@(Math.Round(_prediction.Probability * 100, 1))%)
+            <br />
+            Recommendation: @_prediction.Recommendation
         </RadzenAlert>
     }
 
@@ -39,7 +42,7 @@
     <RadzenCard>
         <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
         <RadzenText TextStyle="TextStyle.Body2">
-            Current prediction uses a placeholder flow and will be replaced with ML.NET model-backed insights in the next phase.
+            This screen runs local ML.NET no-show inference when a trained model is available, with automatic rule-based fallback.
         </RadzenText>
     </RadzenCard>
 

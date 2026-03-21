@@ -1,9 +1,14 @@
 using ClinicManagementSystem.Models.DTOs;
+using ClinicManagementSystem.Models.Entities;
+using ClinicManagementSystem.Models.Enums;
 using ClinicManagementSystem.Services.Interfaces;
+using ClinicManagementSystem.Data;
 using Microsoft.ML;
 using Microsoft.ML.Data;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using System.Text.Json;
 
 namespace ClinicManagementSystem.Services.Implementations;
 
@@ -13,17 +18,48 @@ namespace ClinicManagementSystem.Services.Implementations;
 public class PredictionService : IPredictionService
 {
     private readonly ILogger<PredictionService> _logger;
+    private readonly ClinicDbContext _db;
 
-    public PredictionService(ILogger<PredictionService> logger)
+    private static readonly object ModelSyncLock = new();
+    private static ITransformer? _cachedModel;
+    private static PredictionEngine<NoShowMlDataPoint, NoShowMlPrediction>? _cachedPredictionEngine;
+    private static string? _cachedModelPath;
+
+    private readonly MLContext _mlContext = new(seed: 20260321);
+
+    public PredictionService(ILogger<PredictionService> logger, ClinicDbContext db)
     {
         _logger = logger;
+        _db = db;
     }
 
     public Task<NoShowPredictionOutput> PredictNoShowAsync(NoShowPredictionInput input)
     {
         _logger.LogInformation("Running no-show prediction for appointment type {Type}", input.AppointmentType);
 
-        // Rule-based scoring (replace with ML model in production)
+        if (TryGetPredictionEngine(out var predictionEngine) && predictionEngine is not null)
+        {
+            var modelInput = new NoShowMlDataPoint
+            {
+                PatientAge = input.PatientAge,
+                PreviousNoShows = input.PreviousNoShowCount,
+                PreviousCompletedVisits = input.PreviousCompletedCount,
+                DaysBetweenBookingAndAppointment = input.DaysBetweenBookingAndAppointment,
+                DayOfWeek = input.DayOfWeek.ToString(),
+                AppointmentType = input.AppointmentType.ToString(),
+                ReminderSent = input.HasReminderSent,
+                HasInsurance = input.HasInsurance,
+                ExampleWeight = 1.0f
+            };
+
+            var modelPrediction = predictionEngine.Predict(modelInput);
+            var probability = NormalizeProbability(modelPrediction.Probability, modelPrediction.Score);
+            var mlOutput = BuildPredictionOutput(probability, modelPrediction.Score, modelPrediction.PredictedLabel);
+            _logger.LogInformation("ML no-show prediction result: Probability={Probability}, Risk={Risk}", mlOutput.Probability, mlOutput.RiskLevel);
+            return Task.FromResult(mlOutput);
+        }
+
+        // Fallback rule-based scoring if model is not available.
         double score = 0;
 
         if (input.PreviousNoShowCount > 0)
@@ -43,15 +79,71 @@ public class PredictionService : IPredictionService
 
         score = Math.Clamp(score, 0, 1);
 
-        var output = new NoShowPredictionOutput
-        {
-            WillNoShow = score >= 0.5,
-            Probability = (decimal)Math.Round(score, 4),
-            RiskLevel = score < 0.3 ? "Low" : score < 0.6 ? "Medium" : "High"
-        };
+        var output = BuildPredictionOutput((float)score, (float)score, score >= 0.5);
 
         _logger.LogInformation("No-show prediction result: WillNoShow={WillNoShow}, Risk={Risk}", output.WillNoShow, output.RiskLevel);
         return Task.FromResult(output);
+    }
+
+    public async Task<NoShowPredictionOutput> PredictNoShowForAppointmentAsync(Guid appointmentId, bool persistResult = true)
+    {
+        var appointment = await _db.Appointments
+            .Include(a => a.Patient)
+            .FirstOrDefaultAsync(a => a.Id == appointmentId);
+
+        if (appointment is null)
+        {
+            throw new ArgumentException($"Appointment {appointmentId} was not found.");
+        }
+
+        if (appointment.Patient is null)
+        {
+            throw new ArgumentException("Appointment patient data is required for prediction.");
+        }
+
+        var previousAppointments = await _db.Appointments
+            .Where(a => a.PatientId == appointment.PatientId
+                        && a.AppointmentDate < appointment.AppointmentDate
+                        && a.Id != appointment.Id)
+            .ToListAsync();
+
+        var input = new NoShowPredictionInput
+        {
+            PatientAge = appointment.Patient.Age,
+            PreviousNoShowCount = previousAppointments.Count(a => a.Status == AppointmentStatus.NoShow),
+            PreviousCompletedCount = previousAppointments.Count(a => a.Status == AppointmentStatus.Completed),
+            DaysBetweenBookingAndAppointment = Math.Max(0, (appointment.AppointmentDate.Date - appointment.CreatedAt.Date).Days),
+            DayOfWeek = appointment.AppointmentDate.DayOfWeek,
+            AppointmentType = appointment.AppointmentType,
+            HasInsurance = appointment.Patient.HasInsurance,
+            HasReminderSent = appointment.ReminderSent
+        };
+
+        var prediction = await PredictNoShowAsync(input);
+
+        if (!persistResult)
+        {
+            return prediction;
+        }
+
+        appointment.IsPredictedNoShow = prediction.WillNoShow;
+        appointment.NoShowProbability = prediction.Probability;
+
+        var predictionEntity = new PredictionResult
+        {
+            AppointmentId = appointment.Id,
+            ModelName = TryGetPredictionEngine(out _) ? "ML.NET-FastTree-NoShow-v1" : "RuleBased-NoShow-v1",
+            PredictionType = "NoShow",
+            ProbabilityScore = prediction.Probability,
+            PredictedLabel = prediction.RiskLevel,
+            InputFeaturesJson = JsonSerializer.Serialize(input),
+            OutputJson = JsonSerializer.Serialize(prediction)
+        };
+
+        _db.PredictionResults.Add(predictionEntity);
+        await _db.SaveChangesAsync();
+
+        return prediction;
     }
 
     public async Task<NoShowDatasetGenerationResult> GenerateNoShowDatasetAsync(int rowCount = 1200, CancellationToken cancellationToken = default)
@@ -237,5 +329,70 @@ public class PredictionService : IPredictionService
     private string GetArtifactsDirectory()
     {
         return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "ml-artifacts", "no-show"));
+    }
+
+    private bool TryGetPredictionEngine(out PredictionEngine<NoShowMlDataPoint, NoShowMlPrediction>? predictionEngine)
+    {
+        var modelPath = Path.Combine(GetArtifactsDirectory(), "no_show_model.zip");
+        if (!File.Exists(modelPath))
+        {
+            predictionEngine = null;
+            return false;
+        }
+
+        if (_cachedPredictionEngine is not null && string.Equals(_cachedModelPath, modelPath, StringComparison.OrdinalIgnoreCase))
+        {
+            predictionEngine = _cachedPredictionEngine;
+            return true;
+        }
+
+        lock (ModelSyncLock)
+        {
+            if (_cachedPredictionEngine is not null && string.Equals(_cachedModelPath, modelPath, StringComparison.OrdinalIgnoreCase))
+            {
+                predictionEngine = _cachedPredictionEngine;
+                return true;
+            }
+
+            using var stream = File.OpenRead(modelPath);
+            _cachedModel = _mlContext.Model.Load(stream, out _);
+            _cachedPredictionEngine = _mlContext.Model.CreatePredictionEngine<NoShowMlDataPoint, NoShowMlPrediction>(_cachedModel);
+            _cachedModelPath = modelPath;
+            _logger.LogInformation("Loaded no-show ML model from {ModelPath}", modelPath);
+        }
+
+        predictionEngine = _cachedPredictionEngine;
+        return predictionEngine is not null;
+    }
+
+    private static float NormalizeProbability(float probability, float score)
+    {
+        if (probability > 0 && probability < 1)
+        {
+            return probability;
+        }
+
+        var sigmoid = 1f / (1f + MathF.Exp(-score));
+        return Math.Clamp(sigmoid, 0.0001f, 0.9999f);
+    }
+
+    private static NoShowPredictionOutput BuildPredictionOutput(float probability, float score, bool predictedLabel)
+    {
+        var risk = probability < 0.40f ? "Low" : probability <= 0.70f ? "Medium" : "High";
+        var recommendation = risk switch
+        {
+            "High" => "High risk: call patient and send reminder 24 hours before appointment.",
+            "Medium" => "Medium risk: send an extra reminder and confirm attendance.",
+            _ => "Low risk: standard reminder workflow is sufficient."
+        };
+
+        return new NoShowPredictionOutput
+        {
+            WillNoShow = predictedLabel || probability > 0.5f,
+            Probability = Math.Round((decimal)probability, 4),
+            Score = Math.Round((decimal)score, 4),
+            RiskLevel = risk,
+            Recommendation = recommendation
+        };
     }
 }

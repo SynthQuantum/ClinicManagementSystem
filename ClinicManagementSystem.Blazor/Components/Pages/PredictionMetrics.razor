@@ -1,0 +1,166 @@
+@page "/predictions/metrics"
+@rendermode InteractiveServer
+@inject IPredictionService PredictionService
+@inject ILogger<PredictionMetrics> Logger
+@using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Services.Interfaces
+
+<PageTitle>ML Metrics</PageTitle>
+
+<RadzenStack Gap="1rem">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
+        <RadzenText TextStyle="TextStyle.H4">ML Metrics Results</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="Generate Dataset" Icon="dataset" ButtonStyle="ButtonStyle.Light" Click="GenerateDataset"
+                          Disabled="@_loading" />
+            <RadzenButton Text="Train & Evaluate" Icon="psychology" ButtonStyle="ButtonStyle.Primary"
+                          Click="TrainAndEvaluate" Disabled="@_loading" />
+        </RadzenStack>
+    </RadzenStack>
+
+    @if (_loading)
+    {
+        <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+    }
+    else if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            @_error
+        </RadzenAlert>
+    }
+
+    @if (_datasetResult is not null)
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Dataset Snapshot</RadzenText>
+            <RadzenRow Gap="1rem">
+                <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                    <RadzenText TextStyle="TextStyle.Overline">Rows</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_datasetResult.GeneratedRows</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                    <RadzenText TextStyle="TextStyle.Overline">No-Show Count</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_datasetResult.NoShowCount</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                    <RadzenText TextStyle="TextStyle.Overline">Show Count</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_datasetResult.ShowCount</RadzenText>
+                </RadzenColumn>
+                <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                    <RadzenText TextStyle="TextStyle.Overline">No-Show Rate</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_datasetResult.NoShowRate%</RadzenText>
+                </RadzenColumn>
+            </RadzenRow>
+            <RadzenText TextStyle="TextStyle.Caption">CSV: @_datasetResult.DatasetPath</RadzenText>
+        </RadzenCard>
+    }
+
+    @if (_trainingResult is null)
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+            Train and evaluate the model to see Accuracy, Precision, Recall, F1Score, and AUC.
+        </RadzenAlert>
+    }
+    else
+    {
+        <RadzenRow Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Accuracy</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_trainingResult.Metrics.Accuracy.ToString("P2")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Precision</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_trainingResult.Metrics.Precision.ToString("P2")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Recall</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_trainingResult.Metrics.Recall.ToString("P2")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">F1Score</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_trainingResult.Metrics.F1Score.ToString("P2")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">AUC</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_trainingResult.Metrics.Auc.ToString("F4")</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Training Artifacts</RadzenText>
+            <RadzenText TextStyle="TextStyle.Body2">Train Rows: @_trainingResult.TrainRowCount | Test Rows:
+                @_trainingResult.TestRowCount</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">Dataset: @_trainingResult.DatasetPath</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">Model: @_trainingResult.ModelPath</RadzenText>
+            </RadzenCard>
+        }
+    </RadzenStack>
+
+@code {
+    private bool _loading;
+    private string? _error;
+    private NoShowDatasetGenerationResult? _datasetResult;
+    private NoShowTrainingResult? _trainingResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await TrainAndEvaluate();
+    }
+
+    private async Task GenerateDataset()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _datasetResult = await PredictionService.GenerateNoShowDatasetAsync(1200);
+            Logger.LogInformation("Dataset generated for metrics page");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to generate dataset: {ex.Message}";
+            Logger.LogError(ex, "Dataset generation failed on metrics page");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task TrainAndEvaluate()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            _trainingResult = await PredictionService.TrainNoShowModelAsync();
+            _datasetResult = new NoShowDatasetGenerationResult
+            {
+                DatasetPath = _trainingResult.DatasetPath,
+                GeneratedRows = _trainingResult.TrainRowCount + _trainingResult.TestRowCount,
+                RequestedRows = _trainingResult.TrainRowCount + _trainingResult.TestRowCount
+            };
+            Logger.LogInformation("Training metrics loaded on metrics page");
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to train/evaluate model: {ex.Message}";
+            Logger.LogError(ex, "Training/evaluation failed on metrics page");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+}
