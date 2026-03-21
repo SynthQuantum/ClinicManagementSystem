@@ -8,10 +8,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
+    <PackageReference Include="Microsoft.ML" Version="5.0.0" />
+    <PackageReference Include="Microsoft.ML.FastTree" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
+    <ProjectReference
+      Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
     <ProjectReference Include="..\ClinicManagementSystem.Data\ClinicManagementSystem.Data.csproj" />
   </ItemGroup>
 

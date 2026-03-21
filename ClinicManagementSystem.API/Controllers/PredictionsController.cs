@@ -23,4 +23,20 @@ public class PredictionsController : ControllerBase
         _logger.LogInformation("API: no-show prediction requested");
         return Ok(await _predictionService.PredictNoShowAsync(input));
     }
+
+    [HttpPost("no-show/dataset")]
+    public async Task<ActionResult<NoShowDatasetGenerationResult>> GenerateNoShowDataset([FromQuery] int rows = 1200, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("API: no-show synthetic dataset generation requested. Rows={Rows}", rows);
+        var result = await _predictionService.GenerateNoShowDatasetAsync(rows, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("no-show/train")]
+    public async Task<ActionResult<NoShowTrainingResult>> TrainNoShowModel([FromQuery] string? datasetPath = null, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("API: no-show model training requested");
+        var result = await _predictionService.TrainNoShowModelAsync(datasetPath, cancellationToken);
+        return Ok(result);
+    }
 }
