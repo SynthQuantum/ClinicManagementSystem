@@ -49,7 +49,12 @@ using (var scope = app.Services.CreateScope())
     catch (Exception ex)
     {
         logger.LogError(ex, "Database migration failed during startup.");
-        throw;
+        if (app.Environment.IsDevelopment())
+        {
+            throw;
+        }
+
+        logger.LogWarning("Continuing startup without applying migrations because environment is not Development.");
     }
 }
 
