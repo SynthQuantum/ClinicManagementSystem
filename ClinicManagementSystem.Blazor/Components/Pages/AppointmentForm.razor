@@ -140,20 +140,43 @@
     {
         appointment.StartTime = _startTimeBind.TimeOfDay;
         appointment.EndTime = _endTimeBind.TimeOfDay;
+        try
+        {
+            if (_isNew)
+            {
+                Logger.LogInformation("Creating appointment");
+                await AppointmentService.CreateAsync(appointment);
+                Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment created" });
+            }
+            else
+            {
+                Logger.LogInformation("Updating appointment {Id}", appointment.Id);
+                await AppointmentService.UpdateAsync(appointment);
+                Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment updated" });
+            }
 
-        if (_isNew)
-        {
-            Logger.LogInformation("Creating appointment");
-            await AppointmentService.CreateAsync(appointment);
-            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment created" });
+            Nav.NavigateTo("/appointments");
         }
-        else
+        catch (ArgumentException ex)
         {
-            Logger.LogInformation("Updating appointment {Id}", appointment.Id);
-            await AppointmentService.UpdateAsync(appointment);
-            Notify.Notify(new NotificationMessage { Severity = NotificationSeverity.Success, Summary = "Appointment updated" });
+            Notify.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Validation error",
+                Detail = ex.Message,
+                Duration = 5000
+            });
         }
-        Nav.NavigateTo("/appointments");
+        catch (InvalidOperationException ex)
+        {
+            Notify.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Error,
+                Summary = "Scheduling conflict",
+                Detail = ex.Message,
+                Duration = 6000
+            });
+        }
     }
 
     private async Task RunPrediction()

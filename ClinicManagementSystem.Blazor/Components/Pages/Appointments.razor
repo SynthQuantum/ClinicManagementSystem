@@ -52,17 +52,19 @@
                     }
                 </Template>
             </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="120px" Sortable="false">
+            <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="140px" Sortable="false">
                 <Template Context="appt">
-                    <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                  Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}"))" />
                     <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
                                   Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}/edit"))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                  Click="@(() => DeleteAppointment(appt.Id))" />
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
     </RadzenDataGrid>
 </RadzenStack>
+
+<RadzenNotification />
 
 @code {
     private IEnumerable<Appointment> _appointments = [];
@@ -94,6 +96,13 @@
     private async Task ClearFilter()
     {
         _filterDate = null;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAppointment(Guid id)
+    {
+        Logger.LogInformation("Deleting appointment {AppointmentId}", id);
+        await AppointmentService.DeleteAsync(id);
         await LoadAsync();
     }
 

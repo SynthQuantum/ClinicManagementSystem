@@ -19,9 +19,27 @@ public class AppointmentsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<Appointment>>> GetAll([FromQuery] DateTime? date)
+    public async Task<ActionResult<IEnumerable<Appointment>>> GetAll(
+        [FromQuery] DateTime? date,
+        [FromQuery] Guid? patientId,
+        [FromQuery] Guid? staffMemberId)
     {
-        _logger.LogInformation("API: fetching appointments. Date filter: {Date}", date);
+        _logger.LogInformation(
+            "API: fetching appointments. Date filter: {Date}, Patient: {PatientId}, Staff: {StaffId}",
+            date,
+            patientId,
+            staffMemberId);
+
+        if (patientId.HasValue)
+        {
+            return Ok(await _service.GetByPatientAsync(patientId.Value));
+        }
+
+        if (staffMemberId.HasValue)
+        {
+            return Ok(await _service.GetByStaffAsync(staffMemberId.Value));
+        }
+
         return Ok(date.HasValue ? await _service.GetByDateAsync(date.Value) : await _service.GetAllAsync());
     }
 
@@ -35,16 +53,38 @@ public class AppointmentsController : ControllerBase
     [HttpPost]
     public async Task<ActionResult<Appointment>> Create(Appointment appointment)
     {
-        var created = await _service.CreateAsync(appointment);
-        return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        try
+        {
+            var created = await _service.CreateAsync(appointment);
+            return CreatedAtAction(nameof(GetById), new { id = created.Id }, created);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<Appointment>> Update(Guid id, Appointment appointment)
     {
         if (id != appointment.Id) return BadRequest("Id mismatch.");
-        var updated = await _service.UpdateAsync(appointment);
-        return Ok(updated);
+        try
+        {
+            var updated = await _service.UpdateAsync(appointment);
+            return Ok(updated);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Conflict(ex.Message);
+        }
     }
 
     [HttpPatch("{id:guid}/status")]

@@ -77,6 +77,9 @@ public class AppointmentService : IAppointmentService
     public async Task<Appointment> CreateAsync(Appointment appointment)
     {
         _logger.LogInformation("Creating appointment for patient {PatientId} on {Date}", appointment.PatientId, appointment.AppointmentDate);
+        await ValidateAppointmentAsync(appointment);
+        await EnsureNoSchedulingConflictAsync(appointment);
+
         _db.Appointments.Add(appointment);
         await _db.SaveChangesAsync();
         _logger.LogInformation("Appointment created with id {AppointmentId}", appointment.Id);
@@ -86,6 +89,9 @@ public class AppointmentService : IAppointmentService
     public async Task<Appointment> UpdateAsync(Appointment appointment)
     {
         _logger.LogInformation("Updating appointment {AppointmentId}", appointment.Id);
+        await ValidateAppointmentAsync(appointment);
+        await EnsureNoSchedulingConflictAsync(appointment);
+
         _db.Appointments.Update(appointment);
         await _db.SaveChangesAsync();
         return appointment;
@@ -119,5 +125,66 @@ public class AppointmentService : IAppointmentService
         await _db.SaveChangesAsync();
         _logger.LogInformation("Appointment {AppointmentId} soft-deleted", id);
         return true;
+    }
+
+    private async Task ValidateAppointmentAsync(Appointment appointment)
+    {
+        if (appointment.StartTime >= appointment.EndTime)
+        {
+            throw new ArgumentException("Appointment start time must be earlier than end time.");
+        }
+
+        var patientExists = await _db.Patients.AnyAsync(p => p.Id == appointment.PatientId);
+        if (!patientExists)
+        {
+            throw new ArgumentException("Selected patient does not exist.");
+        }
+
+        var staffExists = await _db.StaffMembers.AnyAsync(s => s.Id == appointment.StaffMemberId);
+        if (!staffExists)
+        {
+            throw new ArgumentException("Selected staff member does not exist.");
+        }
+    }
+
+    private async Task EnsureNoSchedulingConflictAsync(Appointment appointment)
+    {
+        if (appointment.Status == AppointmentStatus.Cancelled)
+        {
+            return;
+        }
+
+        var day = appointment.AppointmentDate.Date;
+        var appointmentId = appointment.Id;
+        var conflict = await _db.Appointments
+            .AsNoTracking()
+            .Where(a => a.AppointmentDate.Date == day
+                        && a.Status != AppointmentStatus.Cancelled
+                        && a.Id != appointmentId
+                        && (a.StaffMemberId == appointment.StaffMemberId || a.PatientId == appointment.PatientId)
+                        && appointment.StartTime < a.EndTime
+                        && appointment.EndTime > a.StartTime)
+            .OrderBy(a => a.StartTime)
+            .Select(a => new
+            {
+                a.Id,
+                a.PatientId,
+                a.StaffMemberId,
+                a.StartTime,
+                a.EndTime
+            })
+            .FirstOrDefaultAsync();
+
+        if (conflict is null)
+        {
+            return;
+        }
+
+        var conflictType = conflict.StaffMemberId == appointment.StaffMemberId
+            ? "staff member"
+            : "patient";
+
+        throw new InvalidOperationException(
+            $"Scheduling conflict: selected {conflictType} already has an appointment between {conflict.StartTime:hh\\:mm} and {conflict.EndTime:hh\\:mm}.");
     }
 }
