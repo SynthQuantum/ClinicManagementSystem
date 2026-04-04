@@ -113,12 +113,17 @@ Seed details: [docs/SEED_DATA.md](docs/SEED_DATA.md)
 - Doctor
 - Receptionist
 
-### Development Admin Credentials (Development Only)
+### Development Admin Seed (Optional)
 
-- Email: admin@clinic.local
-- Password: Admin@12345!
+Default admin seeding is now disabled by default and requires explicit configuration.
 
-Do not use these credentials in staging/production.
+Set these values in development-only configuration (for example user secrets or local appsettings):
+
+- `IdentitySeed:SeedAdmin=true`
+- `IdentitySeed:AdminEmail=<your dev admin email>`
+- `IdentitySeed:AdminPassword=<strong dev-only password>`
+
+Outside Development/Testing, seeding is skipped unless `IdentitySeed:SeedAdmin=true` is explicitly set.
 
 ### API Login Endpoint
 
@@ -127,8 +132,8 @@ Do not use these credentials in staging/production.
 
 ```json
 {
-  "email": "admin@clinic.local",
-  "password": "Admin@12345!"
+  "email": "<configured admin email>",
+  "password": "<configured admin password>"
 }
 ```
 
@@ -184,21 +189,59 @@ Operational expectations for real deployments:
 - Apply strict retention and access policies for audit data and protected health information
 - Run security and privacy compliance validation before any production use
 
-### AppSettings Guidance
+### Secret Management: JWT Signing Key
 
-Configure these keys in API settings (or environment variables):
+**Critical:** The JWT signing key (`Jwt:Key`) is a sensitive secret and must never be committed to source control.
 
-- `Jwt:Key` (required, strong random secret in non-dev)
+**Development Setup**
+
+Use .NET user-secrets to store the JWT key locally:
+
+```powershell
+cd ClinicManagementSystem.API
+dotnet user-secrets init
+dotnet user-secrets set Jwt:Key "your-strong-random-secret-key-here"
+```
+
+The key must be at least 32 characters and contain mixed case, numbers, and symbols.
+
+**Staging/Production Setup**
+
+Set environment variables on the deployment platform:
+
+```bash
+export Jwt:Key="<strong-random-production-secret>"
+```
+
+Or in Azure App Service: use Application Settings or Azure Key Vault with managed identity.
+
+**AppSettings Configuration**
+
+These keys have placeholder (empty) values in source control:
+
+- `Jwt:Key` (empty—must be provided at runtime via user-secrets or environment variables)
 - `Jwt:Issuer`
 - `Jwt:Audience`
 - `Jwt:ExpiryMinutes`
 
-For local development, defaults are provided in [ClinicManagementSystem.API/appsettings.Development.json](ClinicManagementSystem.API/appsettings.Development.json).
+All appsettings files:
 
-For staging/production, replace placeholders in:
+- [ClinicManagementSystem.API/appsettings.json](ClinicManagementSystem.API/appsettings.json) (base)
+- [ClinicManagementSystem.API/appsettings.Development.json](ClinicManagementSystem.API/appsettings.Development.json) (dev)
+- [ClinicManagementSystem.API/appsettings.Staging.json](ClinicManagementSystem.API/appsettings.Staging.json) (staging)
+- [ClinicManagementSystem.API/appsettings.Production.json](ClinicManagementSystem.API/appsettings.Production.json) (prod)
 
-- [ClinicManagementSystem.API/appsettings.Staging.json](ClinicManagementSystem.API/appsettings.Staging.json)
-- [ClinicManagementSystem.API/appsettings.Production.json](ClinicManagementSystem.API/appsettings.Production.json)
+**Runtime Validation**
+
+The API fails fast at startup with a clear error message if `Jwt:Key` is not configured.
+
+Missing Jwt:Key error:
+
+```
+Critical security configuration error: Jwt:Key is not configured.
+Set JWT_KEY environment variable or use 'dotnet user-secrets set Jwt:Key <strong-key>' in Development.
+Never commit JWT secrets to source control.
+```
 
 ## Run the App
 

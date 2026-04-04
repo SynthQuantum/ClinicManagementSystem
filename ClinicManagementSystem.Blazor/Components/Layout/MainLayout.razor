@@ -1,4 +1,7 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IAntiforgery AntiforgeryService
 
 <div class="page">
     <div class="sidebar">
@@ -11,6 +14,11 @@
                 <Authorized>
                     <span class="me-3">@context.User.Identity?.Name</span>
                     <form method="post" action="/account/logout" style="display:inline;">
+                        @if (HttpContextAccessor?.HttpContext != null)
+                        {
+                            var tokens = AntiforgeryService.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+                            <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" />
+                        }
                         <button type="submit" class="btn btn-sm btn-outline-secondary">Logout</button>
                     </form>
                 </Authorized>

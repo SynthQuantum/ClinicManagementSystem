@@ -2,7 +2,10 @@
 @page "/Account/Login"
 @attribute [AllowAnonymous]
 @rendermode InteractiveServer
+@using Microsoft.AspNetCore.Antiforgery
 @inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IAntiforgery AntiforgeryService
 
 <PageTitle>Login</PageTitle>
 
@@ -27,6 +30,11 @@
         <p class="text-muted">Use your clinic account to continue.</p>
 
         <form method="post" action="/account/login">
+            @if (HttpContextAccessor?.HttpContext != null)
+            {
+                var tokens = AntiforgeryService.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+                <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" />
+            }
             <input type="hidden" name="returnUrl" value="@_returnUrl" />
 
             <div class="mb-3">

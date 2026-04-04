@@ -97,7 +97,7 @@ using (var scope = app.Services.CreateScope())
         }
 
         await DevelopmentDataSeeder.SeedAsync(db, logger);
-        await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+        await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger, app.Configuration, app.Environment);
     }
     catch (Exception ex)
     {
@@ -179,7 +179,7 @@ app.MapPost("/account/login", async (
             : "/";
 
     return Results.LocalRedirect(destination);
-}).DisableAntiforgery();
+});
 
 app.MapPost("/account/register", async (
     SignInManager<AppUser> signInManager,
@@ -260,7 +260,7 @@ app.MapPost("/account/register", async (
 
     await signInManager.SignInAsync(user, isPersistent: true);
     return Results.LocalRedirect("/appointments");
-}).DisableAntiforgery();
+});
 
 app.MapPost("/account/logout", async (
     SignInManager<AppUser> signInManager,
@@ -283,7 +283,7 @@ app.MapPost("/account/logout", async (
 
     await signInManager.SignOutAsync();
     return Results.LocalRedirect("/login");
-}).RequireAuthorization().DisableAntiforgery();
+}).RequireAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

@@ -3,6 +3,7 @@ using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.Enums;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace ClinicManagementSystem.API.IntegrationTests;
@@ -12,6 +13,17 @@ public class ApiWebApplicationFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        builder.ConfigureAppConfiguration((_, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:Key"] = "test-jwt-signing-key-32-characters-minimum-length!",
+                ["IdentitySeed:SeedAdmin"] = "true",
+                ["IdentitySeed:AdminEmail"] = "admin.test@clinic.local",
+                ["IdentitySeed:AdminPassword"] = "AdminTest@12345!"
+            });
+        });
 
         builder.ConfigureServices(services =>
         {

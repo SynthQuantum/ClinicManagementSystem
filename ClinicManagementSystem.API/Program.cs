@@ -51,6 +51,16 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 .AddDefaultTokenProviders();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtKey = jwtSection["Key"];
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException(
+        "Critical security configuration error: Jwt:Key is not configured. " +
+        "Set JWT_KEY environment variable or use 'dotnet user-secrets set Jwt:Key <strong-key>' in Development. " +
+        "Never commit JWT secrets to source control.");
+}
+
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -62,8 +72,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuerSigningKey = true,
             ValidIssuer = jwtSection["Issuer"],
             ValidAudience = jwtSection["Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtSection["Key"] ?? throw new InvalidOperationException("Missing Jwt:Key")))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
 
@@ -107,7 +116,7 @@ using (var scope = app.Services.CreateScope())
         }
 
         await DevelopmentDataSeeder.SeedAsync(db, logger);
-        await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+        await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger, app.Configuration, app.Environment);
     }
     catch (Exception ex)
     {

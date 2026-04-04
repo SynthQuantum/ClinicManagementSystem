@@ -1,7 +1,9 @@
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.Enums;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace ClinicManagementSystem.Data;
@@ -10,11 +12,11 @@ public static class IdentitySeeder
 {
     public static readonly string[] DefaultRoles = ["Admin", "Doctor", "Receptionist"];
 
-    // Development-only credentials — change before deploying to production
-    private const string DevAdminEmail = "admin@clinic.local";
-    private const string DevAdminPassword = "Admin@12345!";
-
-    public static async Task SeedAsync(IServiceProvider services, ILogger logger)
+    public static async Task SeedAsync(
+        IServiceProvider services,
+        ILogger logger,
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
         var userManager = services.GetRequiredService<UserManager<AppUser>>();
@@ -33,16 +35,32 @@ public static class IdentitySeeder
             }
         }
 
-        // Seed development admin user
-        if (await userManager.FindByEmailAsync(DevAdminEmail) is null)
+        var canSeedByEnvironment = environment.IsDevelopment() || environment.IsEnvironment("Testing");
+        var forceSeedByConfig = configuration.GetValue<bool>("IdentitySeed:SeedAdmin");
+
+        if (!canSeedByEnvironment && !forceSeedByConfig)
+        {
+            logger.LogInformation("Identity: skipping default admin seeding outside Development/Testing because IdentitySeed:SeedAdmin is not enabled.");
+            return;
+        }
+
+        var adminEmail = configuration["IdentitySeed:AdminEmail"];
+        var adminPassword = configuration["IdentitySeed:AdminPassword"];
+
+        if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
+        {
+            logger.LogWarning("Identity: default admin seeding skipped because IdentitySeed:AdminEmail/AdminPassword are not configured.");
+            return;
+        }
+
+        if (await userManager.FindByEmailAsync(adminEmail) is null)
         {
             var admin = new AppUser
             {
-                Id = new Guid("d0000000-0000-0000-0000-000000000001"),
-                UserName = DevAdminEmail,
-                Email = DevAdminEmail,
-                NormalizedEmail = DevAdminEmail.ToUpperInvariant(),
-                NormalizedUserName = DevAdminEmail.ToUpperInvariant(),
+                UserName = adminEmail,
+                Email = adminEmail,
+                NormalizedEmail = adminEmail.ToUpperInvariant(),
+                NormalizedUserName = adminEmail.ToUpperInvariant(),
                 EmailConfirmed = true,
                 FirstName = "System",
                 LastName = "Admin",
@@ -52,11 +70,11 @@ public static class IdentitySeeder
                 UpdatedAt = DateTime.UtcNow
             };
 
-            var createResult = await userManager.CreateAsync(admin, DevAdminPassword);
+            var createResult = await userManager.CreateAsync(admin, adminPassword);
             if (createResult.Succeeded)
             {
                 await userManager.AddToRoleAsync(admin, "Admin");
-                logger.LogInformation("Identity: seeded dev admin user '{Email}'", DevAdminEmail);
+                logger.LogInformation("Identity: seeded configured admin user '{Email}'", adminEmail);
             }
             else
             {

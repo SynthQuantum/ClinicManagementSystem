@@ -1,4 +1,9 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
+﻿@using Microsoft.AspNetCore.Antiforgery
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IAntiforgery AntiforgeryService
+
+<div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">ClinicManagementSystem</a>
     </div>
@@ -96,6 +101,11 @@
             <Authorized>
                 <div class="nav-item px-3">
                     <form method="post" action="/account/logout" style="margin:0;">
+                        @if (HttpContextAccessor?.HttpContext != null)
+                        {
+                            var tokens = AntiforgeryService.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+                            <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" />
+                        }
                         <button type="submit" class="nav-link btn btn-link" style="text-align:left;width:100%;">
                             <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
                         </button>

@@ -24,8 +24,8 @@ public class ApiEndpointsTests : IClassFixture<ApiWebApplicationFactory>
 
         var response = await _client.PostAsJsonAsync("/api/auth/login", new
         {
-            email = "admin@clinic.local",
-            password = "Admin@12345!"
+            email = "admin.test@clinic.local",
+            password = "AdminTest@12345!"
         });
 
         response.EnsureSuccessStatusCode();
