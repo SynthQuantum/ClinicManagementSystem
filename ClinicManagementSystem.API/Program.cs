@@ -123,8 +123,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseMiddleware<RequestAuditLoggingMiddleware>();
 app.UseAuthentication();
+app.UseMiddleware<RequestAuditLoggingMiddleware>();
 app.UseAuthorization();
 
 app.MapControllers();
