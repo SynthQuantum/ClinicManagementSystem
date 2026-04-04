@@ -1,14 +1,27 @@
 using Bunit;
+using Bunit.TestDoubles;
 using ClinicManagementSystem.Blazor.Components.Layout;
 using FluentAssertions;
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace ClinicManagementSystem.Blazor.Tests;
 
 public class NavMenuTests : TestContext
 {
+    public NavMenuTests()
+    {
+        Services.AddHttpContextAccessor();
+        Services.AddAntiforgery();
+    }
+
     [Fact]
     public void NavMenu_ShouldRenderExpectedPrimaryNavigationLinks()
     {
+        var authContext = this.AddTestAuthorization();
+        authContext.SetAuthorized("admin@clinic.local");
+        authContext.SetRoles("Admin");
+
         var cut = RenderComponent<NavMenu>();
         var markup = cut.Markup;
 

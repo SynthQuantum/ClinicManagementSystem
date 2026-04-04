@@ -1,4 +1,5 @@
 @page "/visit-records"
+@attribute [Authorize(Roles = "Admin,Doctor,Receptionist")]
 @rendermode InteractiveServer
 @inject IVisitRecordService VisitRecordService
 @inject IPatientService PatientService
@@ -15,21 +16,24 @@
 
     <RadzenCard>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
-            <RadzenDropDown @bind-Value="_selectedPatientId" Data="@_patients" TextProperty="FullName" ValueProperty="Id"
-                            Placeholder="Select patient" Change="@OnPatientChanged" Style="width: 320px" />
-            <RadzenButton Text="New Visit" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OpenCreate" Disabled="@(!_selectedPatientId.HasValue)" />
+            <RadzenDropDown @bind-Value="_selectedPatientId" Data="@_patients" TextProperty="FullName"
+                            ValueProperty="Id" Placeholder="Select patient" Change="@OnPatientChanged" Style="width: 320px" />
+            <RadzenButton Text="New Visit" Icon="add" ButtonStyle="ButtonStyle.Primary" Click="@OpenCreate"
+                          Disabled="@(!_selectedPatientId.HasValue)" />
         </RadzenStack>
     </RadzenCard>
 
     <RadzenDataGrid Data="@_records" TItem="VisitRecord" AllowPaging="true" AllowSorting="true" PageSize="10">
         <Columns>
-            <RadzenDataGridColumn TItem="VisitRecord" Property="VisitDate" Title="Date" FormatString="{0:yyyy-MM-dd HH:mm}" />
+            <RadzenDataGridColumn TItem="VisitRecord" Property="VisitDate" Title="Date"
+                                  FormatString="{0:yyyy-MM-dd HH:mm}" />
             <RadzenDataGridColumn TItem="VisitRecord" Property="Diagnosis" Title="Diagnosis" />
             <RadzenDataGridColumn TItem="VisitRecord" Property="Treatment" Title="Treatment" />
             <RadzenDataGridColumn TItem="VisitRecord" Property="Prescription" Title="Prescription" />
             <RadzenDataGridColumn TItem="VisitRecord" Title="Actions" Width="140px">
                 <Template Context="record">
-                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small" Click="@(() => DeleteRecord(record.Id))" />
+                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                  Click="@(() => DeleteRecord(record.Id))" />
                 </Template>
             </RadzenDataGridColumn>
         </Columns>

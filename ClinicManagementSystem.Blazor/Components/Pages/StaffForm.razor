@@ -1,5 +1,6 @@
 @page "/staff/new"
 @page "/staff/{Id:guid}/edit"
+@attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 @inject IStaffService StaffService
 @inject NavigationManager Nav
@@ -12,7 +13,8 @@
 <PageTitle>@(_isNew ? "Add Staff Member" : "Edit Staff Member")</PageTitle>
 
 <RadzenStack Gap="1rem">
-    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween" AlignItems="AlignItems.Center">
+    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                 AlignItems="AlignItems.Center">
         <RadzenText TextStyle="TextStyle.H4">@(_isNew ? "Add Staff Member" : "Edit Staff Member")</RadzenText>
         <RadzenButton Text="Back" Icon="arrow_back" ButtonStyle="ButtonStyle.Light"
                       Click="@(() => Nav.NavigateTo("/staff"))" />
@@ -59,7 +61,8 @@
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12">
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save" Icon="save" ButtonStyle="ButtonStyle.Primary" />
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save" Icon="save"
+                                      ButtonStyle="ButtonStyle.Primary" />
                         <RadzenButton Text="Cancel" Icon="cancel" ButtonStyle="ButtonStyle.Light"
                                       Click="@(() => Nav.NavigateTo("/staff"))" />
                     </RadzenStack>

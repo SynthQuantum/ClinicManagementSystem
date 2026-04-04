@@ -1,4 +1,7 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Antiforgery
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IAntiforgery AntiforgeryService
 
 <div class="page">
     <div class="sidebar">
@@ -7,7 +10,25 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <AuthorizeView>
+                <Authorized>
+                    <span class="me-3">@context.User.Identity?.Name</span>
+                    <form method="post" action="/account/logout" style="display:inline;">
+                        @if (HttpContextAccessor?.HttpContext != null)
+                        {
+                            var tokens = AntiforgeryService.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+                            <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" />
+                        }
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Logout</button>
+                    </form>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-primary" href="/login">Login</a>
+                        <a class="btn btn-sm btn-primary" href="/register">Register</a>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">

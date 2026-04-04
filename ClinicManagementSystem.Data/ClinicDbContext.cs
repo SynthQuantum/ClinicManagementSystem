@@ -1,13 +1,16 @@
 using ClinicManagementSystem.Models.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace ClinicManagementSystem.Data;
 
-public class ClinicDbContext : DbContext
+public class ClinicDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
 {
     public ClinicDbContext(DbContextOptions<ClinicDbContext> options) : base(options) { }
 
-    public DbSet<AppUser> AppUsers => Set<AppUser>();
+    // Alias for backward compatibility — Identity provides the underlying Users DbSet
+    public DbSet<AppUser> AppUsers => Users;
     public DbSet<Patient> Patients => Set<Patient>();
     public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
@@ -21,7 +24,16 @@ public class ClinicDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
-        // Global soft-delete query filter
+        // Custom table names — keep "App*" prefix to match existing naming and avoid "AspNet*" tables
+        modelBuilder.Entity<AppUser>().ToTable("AppUsers");
+        modelBuilder.Entity<IdentityRole<Guid>>().ToTable("AppRoles");
+        modelBuilder.Entity<IdentityUserRole<Guid>>().ToTable("AppUserRoles");
+        modelBuilder.Entity<IdentityUserClaim<Guid>>().ToTable("AppUserClaims");
+        modelBuilder.Entity<IdentityUserLogin<Guid>>().ToTable("AppUserLogins");
+        modelBuilder.Entity<IdentityRoleClaim<Guid>>().ToTable("AppRoleClaims");
+        modelBuilder.Entity<IdentityUserToken<Guid>>().ToTable("AppUserTokens");
+
+        // Global soft-delete query filters
         modelBuilder.Entity<AppUser>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Patient>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<StaffMember>().HasQueryFilter(e => !e.IsDeleted);
@@ -32,7 +44,7 @@ public class ClinicDbContext : DbContext
         modelBuilder.Entity<AuditLog>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ClinicSettings>().HasQueryFilter(e => !e.IsDeleted);
 
-        // AppUser
+        // AppUser — email unique index (IdentityDbContext also enforces this, but explicit is fine)
         modelBuilder.Entity<AppUser>()
             .HasIndex(u => u.Email)
             .IsUnique();
@@ -123,10 +135,21 @@ public class ClinicDbContext : DbContext
 
     private void UpdateTimestamps()
     {
-        var entries = ChangeTracker.Entries<Models.Entities.BaseEntity>()
+        var baseEntries = ChangeTracker.Entries<Models.Entities.BaseEntity>()
             .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
 
-        foreach (var entry in entries)
+        foreach (var entry in baseEntries)
+        {
+            entry.Entity.UpdatedAt = DateTime.UtcNow;
+            if (entry.State == EntityState.Added)
+                entry.Entity.CreatedAt = DateTime.UtcNow;
+        }
+
+        // AppUser inherits IdentityUser<Guid>, not BaseEntity — handle timestamps separately
+        var userEntries = ChangeTracker.Entries<AppUser>()
+            .Where(e => e.State == EntityState.Added || e.State == EntityState.Modified);
+
+        foreach (var entry in userEntries)
         {
             entry.Entity.UpdatedAt = DateTime.UtcNow;
             if (entry.State == EntityState.Added)

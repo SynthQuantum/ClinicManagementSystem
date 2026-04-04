@@ -1,11 +1,13 @@
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicManagementSystem.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
 public class AuditLogsController : ControllerBase
 {
     private readonly IAuditLogService _service;

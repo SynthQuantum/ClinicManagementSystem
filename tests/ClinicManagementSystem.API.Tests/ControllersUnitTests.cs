@@ -19,7 +19,7 @@ public class ControllersUnitTests
             new Patient { FirstName = "Search", LastName = "Result", DateOfBirth = new DateTime(1990, 1, 1) }
         };
         var service = new FakePatientService { SearchResults = expected };
-        var controller = new PatientsController(service, NullLogger<PatientsController>.Instance);
+        var controller = new PatientsController(service, new FakeAuditLogService(), NullLogger<PatientsController>.Instance);
 
         var result = await controller.GetAll("search");
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
@@ -36,9 +36,16 @@ public class ControllersUnitTests
         {
             CreateException = new InvalidOperationException("Scheduling conflict detected.")
         };
-        var controller = new AppointmentsController(service, NullLogger<AppointmentsController>.Instance);
+        var controller = new AppointmentsController(service, new FakeAuditLogService(), NullLogger<AppointmentsController>.Instance);
 
-        var result = await controller.Create(new Appointment());
+        var result = await controller.Create(new AppointmentUpsertRequest
+        {
+            PatientId = Guid.NewGuid(),
+            StaffMemberId = Guid.NewGuid(),
+            AppointmentDate = DateTime.UtcNow.Date,
+            StartTime = TimeSpan.FromHours(9),
+            EndTime = TimeSpan.FromHours(10)
+        });
 
         result.Result.Should().BeOfType<ConflictObjectResult>()
             .Which.Value.Should().Be("Scheduling conflict detected.");
@@ -113,5 +120,14 @@ public class ControllersUnitTests
 
         public Task<IEnumerable<StaffWorkloadSummary>> GetStaffWorkloadAsync()
             => Task.FromResult(Enumerable.Empty<StaffWorkloadSummary>());
+    }
+
+    private sealed class FakeAuditLogService : IAuditLogService
+    {
+        public Task<IEnumerable<AuditLog>> GetAllAsync() => Task.FromResult(Enumerable.Empty<AuditLog>());
+
+        public Task<AuditLog?> GetByIdAsync(Guid id) => Task.FromResult<AuditLog?>(null);
+
+        public Task<AuditLog> CreateAsync(AuditLog log) => Task.FromResult(log);
     }
 }

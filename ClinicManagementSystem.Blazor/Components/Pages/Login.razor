@@ -1,0 +1,84 @@
+@page "/login"
+@page "/Account/Login"
+@attribute [AllowAnonymous]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Antiforgery
+@inject NavigationManager Navigation
+@inject IHttpContextAccessor HttpContextAccessor
+@inject IAntiforgery AntiforgeryService
+
+<PageTitle>Login</PageTitle>
+
+<h1>Sign in</h1>
+
+@if (_showError)
+{
+    <div class="alert alert-danger" role="alert">
+        Invalid credentials. Please try again.
+    </div>
+}
+
+@if (_showRegistered)
+{
+    <div class="alert alert-success" role="alert">
+        Registration completed successfully. You can sign in now.
+    </div>
+}
+
+<div class="card mt-3" style="max-width: 480px;">
+    <div class="card-body">
+        <p class="text-muted">Use your clinic account to continue.</p>
+
+        <form method="post" action="/account/login">
+            @if (HttpContextAccessor?.HttpContext != null)
+            {
+                var tokens = AntiforgeryService.GetAndStoreTokens(HttpContextAccessor.HttpContext);
+                <input type="hidden" name="__RequestVerificationToken" value="@tokens.RequestToken" />
+            }
+            <input type="hidden" name="returnUrl" value="@_returnUrl" />
+
+            <div class="mb-3">
+                <label class="form-label" for="email">Email</label>
+                <input id="email" name="email" class="form-control" type="email" value="admin@clinic.local" required />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label" for="password">Password</label>
+                <input id="password" name="password" class="form-control" type="password" value="Admin@12345!"
+                       required />
+            </div>
+
+            <div class="d-flex gap-2 align-items-center">
+                <button class="btn btn-primary" type="submit">Sign in</button>
+                <a class="btn btn-outline-primary" href="@RegisterUrl">Register</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@code {
+    private bool _showError;
+    private bool _showRegistered;
+    private string _returnUrl = "/";
+    private string RegisterUrl => $"/register?returnUrl={Uri.EscapeDataString(_returnUrl)}";
+
+    protected override void OnInitialized()
+    {
+        var uri = Navigation.ToAbsoluteUri(Navigation.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+
+        _showError = query.TryGetValue("error", out var error)
+            && string.Equals(error.ToString(), "1", StringComparison.Ordinal);
+
+        _showRegistered = query.TryGetValue("registered", out var registered)
+            && string.Equals(registered.ToString(), "1", StringComparison.Ordinal);
+
+        if (query.TryGetValue("returnUrl", out var returnUrl)
+            || query.TryGetValue("ReturnUrl", out returnUrl))
+        {
+            _returnUrl = !string.IsNullOrWhiteSpace(returnUrl.ToString())
+                ? returnUrl.ToString()
+                : "/";
+        }
+    }
+}

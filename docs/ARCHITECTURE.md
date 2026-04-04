@@ -7,6 +7,7 @@
 - Business services: [ClinicManagementSystem.Services](../ClinicManagementSystem.Services)
 - Data access and seed: [ClinicManagementSystem.Data](../ClinicManagementSystem.Data)
 - Shared entities and DTOs: [ClinicManagementSystem.Models](../ClinicManagementSystem.Models)
+- Authentication and identity: ASP.NET Core Identity with EF Core
 
 ## Layer Responsibilities
 
@@ -44,5 +45,14 @@ sequenceDiagram
 
 - Soft-delete query filters are configured in DbContext.
 - Startup applies pending migrations.
-- Seed data runs when pending migrations exist and are applied.
+- Seed data runs idempotently at startup.
+- Identity roles and development admin are seeded idempotently at startup.
 - ML inference is local with ML.NET and model files under [ml-artifacts/no-show](../ml-artifacts/no-show).
+
+## Authentication Architecture
+
+- `AppUser` is integrated with ASP.NET Core Identity (`IdentityUser<Guid>`).
+- API uses JWT bearer authentication (`/api/auth/login`).
+- Blazor uses Identity application cookies (`/account/login`, `/account/logout`).
+- Role-based authorization is enforced in API controllers and Blazor route attributes.
+- Authentication-related events are persisted in `AuditLogs`.

@@ -1,6 +1,13 @@
+using ClinicManagementSystem.API.Auth;
+using ClinicManagementSystem.API.Middleware;
 using ClinicManagementSystem.Data;
+using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -8,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
         options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -27,6 +35,49 @@ else
                 errorNumbersToAdd: null)));
 }
 
+builder.Services.AddIdentityCore<AppUser>(options =>
+{
+    options.Password.RequireDigit = true;
+    options.Password.RequiredLength = 8;
+    options.Password.RequireNonAlphanumeric = true;
+    options.Password.RequireUppercase = true;
+    options.Lockout.MaxFailedAccessAttempts = 5;
+    options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+    options.User.RequireUniqueEmail = true;
+})
+.AddRoles<IdentityRole<Guid>>()
+.AddEntityFrameworkStores<ClinicDbContext>()
+.AddSignInManager()
+.AddDefaultTokenProviders();
+
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtKey = jwtSection["Key"];
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    throw new InvalidOperationException(
+        "Critical security configuration error: Jwt:Key is not configured. " +
+        "Set JWT_KEY environment variable or use 'dotnet user-secrets set Jwt:Key <strong-key>' in Development. " +
+        "Never commit JWT secrets to source control.");
+}
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSection["Issuer"],
+            ValidAudience = jwtSection["Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+    });
+
+builder.Services.AddAuthorization();
+builder.Services.AddScoped<TokenService>();
 builder.Services.AddClinicServices();
 
 var app = builder.Build();
@@ -37,20 +88,19 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var db = scope.ServiceProvider.GetRequiredService<ClinicDbContext>();
+
         if (db.Database.IsRelational())
         {
             if (db.Database.GetMigrations().Any())
             {
-                var hasPendingMigrations = db.Database.GetPendingMigrations().Any();
-                if (hasPendingMigrations)
+                if (db.Database.GetPendingMigrations().Any())
                 {
                     db.Database.Migrate();
                     logger.LogInformation("Database migration completed successfully.");
-                    await DevelopmentDataSeeder.SeedAsync(db, logger);
                 }
                 else
                 {
-                    logger.LogInformation("No pending migrations. Skipping seed.");
+                    logger.LogInformation("No pending migrations.");
                 }
             }
             else
@@ -64,10 +114,21 @@ using (var scope = app.Services.CreateScope())
             db.Database.EnsureCreated();
             logger.LogInformation("Database created with EnsureCreated for non-relational provider.");
         }
+
+        await DevelopmentDataSeeder.SeedAsync(db, logger);
+
+        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+        {
+            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+        }
+        else
+        {
+            logger.LogInformation("Skipping identity seeding outside Development/Testing environments.");
+        }
     }
     catch (Exception ex)
     {
-        logger.LogError(ex, "Database migration failed during startup.");
+        logger.LogError(ex, "Database migration/seed failed during startup.");
         throw;
     }
 }
@@ -79,7 +140,10 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseMiddleware<RequestAuditLoggingMiddleware>();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();

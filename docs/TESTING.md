@@ -67,6 +67,22 @@ dotnet test .\ClinicManagementSystem.slnx
   - dashboard cards and trend/workload
   - prediction risk display and ML metrics page
 
+## Authentication Manual Checklist
+
+- Log in to Blazor with development admin account.
+- Verify successful redirect to dashboard.
+- Verify Logout clears auth session and redirects to login.
+- Attempt to access `/staff` as non-admin and confirm unauthorized behavior.
+- Attempt to call protected API endpoint without JWT and confirm `401 Unauthorized`.
+- Call `/api/auth/login` and retry protected API with bearer token.
+- Verify role restrictions:
+  - Patients: Admin, Doctor, Receptionist
+  - StaffMembers: Admin only
+  - Appointments: Admin, Doctor, Receptionist
+  - Dashboard: Admin, Doctor
+  - Predictions: Admin, Doctor, Receptionist
+- Verify auth events exist in `AuditLogs` (login success/fail/logout).
+
 ## Recommended Next Additions
 
 - API negative-path integration tests (validation and conflict responses)
