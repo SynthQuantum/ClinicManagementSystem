@@ -1,4 +1,5 @@
 @page "/appointments"
+@attribute [Authorize(Roles = "Admin,Doctor,Receptionist")]
 @rendermode InteractiveServer
 @inject IAppointmentService AppointmentService
 @inject IStaffService StaffService
@@ -24,12 +25,12 @@
             <RadzenDatePicker @bind-Value="_filterDate" DateFormat="yyyy-MM-dd" Change="@OnDateChanged" />
         </RadzenFormField>
         <RadzenFormField Text="Status">
-            <RadzenDropDown @bind-Value="_filterStatus"                            Data="@(Enum.GetValues<AppointmentStatus>())"                            AllowClear="true"
-                            Change="@(_ => ApplyFilters())"                            Placeholder="Any status" />
+            <RadzenDropDown @bind-Value="_filterStatus" Data="@(Enum.GetValues<AppointmentStatus>())" AllowClear="true"
+                            Change="@(_ => ApplyFilters())" Placeholder="Any status" />
         </RadzenFormField>
         <RadzenFormField Text="Staff">
-            <RadzenDropDown @bind-Value="_filterStaffId"                            Data="@_staff"                            TextProperty="FullName"                            ValueProperty="Id"
-                            AllowClear="true"                            Change="@(_ => LoadAsync())"                            Placeholder="Any staff" />
+            <RadzenDropDown @bind-Value="_filterStaffId" Data="@_staff" TextProperty="FullName" ValueProperty="Id"
+                            AllowClear="true" Change="@(_ => LoadAsync())" Placeholder="Any staff" />
         </RadzenFormField>
         <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Light" Click="@ClearFilter" />
     </RadzenStack>

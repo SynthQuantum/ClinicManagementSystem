@@ -7,7 +7,20 @@
 
     <main>
         <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+            <AuthorizeView>
+                <Authorized>
+                    <span class="me-3">@context.User.Identity?.Name</span>
+                    <form method="post" action="/account/logout" style="display:inline;">
+                        <button type="submit" class="btn btn-sm btn-outline-secondary">Logout</button>
+                    </form>
+                </Authorized>
+                <NotAuthorized>
+                    <div class="d-flex gap-2">
+                        <a class="btn btn-sm btn-outline-primary" href="/login">Login</a>
+                        <a class="btn btn-sm btn-primary" href="/register">Register</a>
+                    </div>
+                </NotAuthorized>
+            </AuthorizeView>
         </div>
 
         <article class="content px-4">

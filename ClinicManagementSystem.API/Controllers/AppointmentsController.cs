@@ -2,11 +2,13 @@ using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.Enums;
 using ClinicManagementSystem.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ClinicManagementSystem.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin,Doctor,Receptionist")]
 public class AppointmentsController : ControllerBase
 {
     private readonly IAppointmentService _service;

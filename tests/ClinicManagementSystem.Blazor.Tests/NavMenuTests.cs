@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.TestDoubles;
 using ClinicManagementSystem.Blazor.Components.Layout;
 using FluentAssertions;
 
@@ -9,6 +10,10 @@ public class NavMenuTests : TestContext
     [Fact]
     public void NavMenu_ShouldRenderExpectedPrimaryNavigationLinks()
     {
+        var authContext = this.AddTestAuthorization();
+        authContext.SetAuthorized("admin@clinic.local");
+        authContext.SetRoles("Admin");
+
         var cut = RenderComponent<NavMenu>();
         var markup = cut.Markup;
 

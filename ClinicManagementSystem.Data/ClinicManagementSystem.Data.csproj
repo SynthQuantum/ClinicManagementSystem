@@ -16,7 +16,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
+  </ItemGroup>
+
+
+  <ItemGroup>
+    <ProjectReference
+      Include="..\ClinicManagementSystem.Models\ClinicManagementSystem.Models.csproj" />
   </ItemGroup>
 
 </Project>

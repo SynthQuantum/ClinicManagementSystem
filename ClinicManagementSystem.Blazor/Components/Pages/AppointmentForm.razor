@@ -1,5 +1,6 @@
 @page "/appointments/new"
 @page "/appointments/{Id:guid}/edit"
+@attribute [Authorize(Roles = "Admin,Doctor,Receptionist")]
 @rendermode InteractiveServer
 @inject IAppointmentService AppointmentService
 @inject IPatientService PatientService

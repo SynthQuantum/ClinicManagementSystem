@@ -1,4 +1,5 @@
 @page "/predictions"
+@attribute [Authorize(Roles = "Admin,Doctor,Receptionist")]
 @rendermode InteractiveServer
 @inject IPredictionService PredictionService
 @inject NavigationManager Nav
@@ -20,7 +21,8 @@
             <RadzenRow Gap="1rem">
                 <RadzenColumn Size="4">
                     <RadzenFormField Text="Patient Age" Style="width:100%">
-                        <RadzenNumeric @bind-Value="_input.PatientAge" Min="0" Placeholder="Patient age" Style="width:100%"
+                        <RadzenNumeric @bind-Value="_input.PatientAge" Min="0" Placeholder="Patient age"
+                                       Style="width:100%"
                                        title="Patient age at appointment date; used to estimate attendance behavior." />
                     </RadzenFormField>
                 </RadzenColumn>
@@ -47,14 +49,15 @@
                 </RadzenColumn>
                 <RadzenColumn Size="4">
                     <RadzenFormField Text="Appointment Type" Style="width:100%">
-                        <RadzenDropDown @bind-Value="_input.AppointmentType" Data="@(Enum.GetValues<AppointmentType>())" Style="width:100%"
+                        <RadzenDropDown @bind-Value="_input.AppointmentType" Data="@(Enum.GetValues<AppointmentType>())"
+                                        Style="width:100%"
                                         title="Type of visit; some categories have different attendance patterns." />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="4">
                     <RadzenFormField Text="Day of Week" Style="width:100%">
-                        <RadzenDropDown @bind-Value="_input.DayOfWeek" Data="@(Enum.GetValues<DayOfWeek>())" Style="width:100%"
-                                        title="Scheduled day of week for the appointment." />
+                        <RadzenDropDown @bind-Value="_input.DayOfWeek" Data="@(Enum.GetValues<DayOfWeek>())"
+                                        Style="width:100%" title="Scheduled day of week for the appointment." />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn Size="3">
