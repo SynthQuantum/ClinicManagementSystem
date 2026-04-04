@@ -107,7 +107,15 @@ using (var scope = app.Services.CreateScope())
         }
 
         await DevelopmentDataSeeder.SeedAsync(db, logger);
-        await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+
+        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+        {
+            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+        }
+        else
+        {
+            logger.LogInformation("Skipping identity seeding outside Development/Testing environments.");
+        }
     }
     catch (Exception ex)
     {
