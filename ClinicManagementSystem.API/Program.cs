@@ -1,4 +1,5 @@
 using ClinicManagementSystem.API.Auth;
+using ClinicManagementSystem.API.Middleware;
 using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services;
@@ -122,6 +123,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<RequestAuditLoggingMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
 

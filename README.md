@@ -166,6 +166,24 @@ Authentication events are written to `AuditLogs` with `EntityName = "Authenticat
 - AccountLockedOut
 - Logout
 
+## Healthcare Privacy and Data Protection Considerations
+
+This project is an educational capstone and not a certified clinical production system. The following controls are implemented to move the prototype toward healthcare-ready engineering practices:
+
+- Least-privilege access with role-based authorization across API endpoints and Blazor pages
+- Endpoint access logging middleware that records user identifier, endpoint, timestamp, and success/failure outcome
+- Expanded audit trails for patient, staff, appointment, and prediction lifecycle actions
+- API write hardening with dedicated request DTOs to prevent over-posting of entity-controlled fields
+- Input validation on healthcare-relevant payloads (identity/contact fields, appointment time logic, and prediction request ranges)
+- Soft-delete-by-default query behavior enforced at the DbContext layer through global query filters
+
+Operational expectations for real deployments:
+
+- Use encryption at rest and in transit for all environments
+- Store secrets in managed secret providers (for example Azure Key Vault), never in source control
+- Apply strict retention and access policies for audit data and protected health information
+- Run security and privacy compliance validation before any production use
+
 ### AppSettings Guidance
 
 Configure these keys in API settings (or environment variables):
