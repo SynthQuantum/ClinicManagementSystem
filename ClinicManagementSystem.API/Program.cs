@@ -119,7 +119,7 @@ using (var scope = app.Services.CreateScope())
 
         if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
         {
-            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger, app.Configuration, app.Environment);
         }
         else
         {
