@@ -2,70 +2,103 @@
 
 ## Scope
 
-This prototype uses ML.NET only (no Python, no external AI APIs) to estimate appointment no-show risk.
+The no-show subsystem uses ML.NET only (no Python and no external AI APIs). It supports local training, evaluation, model persistence, and appointment-level inference.
 
 ## Implemented Components
 
-- Synthetic dataset generator in [ClinicManagementSystem.Services/Implementations/PredictionService.cs](../ClinicManagementSystem.Services/Implementations/PredictionService.cs)
-- Training/evaluation pipeline in the same service
-- Appointment inference endpoint in [ClinicManagementSystem.API/Controllers/PredictionsController.cs](../ClinicManagementSystem.API/Controllers/PredictionsController.cs)
-- UI metrics page at /predictions/metrics
+- Service implementation: [ClinicManagementSystem.Services/Implementations/PredictionService.cs](../ClinicManagementSystem.Services/Implementations/PredictionService.cs)
+- DTO contracts: [ClinicManagementSystem.Models/DTOs](../ClinicManagementSystem.Models/DTOs)
+- API endpoints: [ClinicManagementSystem.API/Controllers/PredictionsController.cs](../ClinicManagementSystem.API/Controllers/PredictionsController.cs)
+- Metrics UI page: `/predictions/metrics`
 
-## Input Features
+## Feature List
 
-- PatientAge
-- PreviousNoShows
-- PreviousCompletedVisits
-- DaysBetweenBookingAndAppointment
-- DayOfWeek
-- AppointmentType
-- ReminderSent
-- HasInsurance
+The model uses the following features for binary no-show prediction:
 
-## Target Label
+- `PatientAge`
+- `DaysBetweenBookingAndAppointment`
+- `PreviousNoShows`
+- `PreviousCompletedVisits`
+- `AppointmentType`
+- `DayOfWeek`
+- `ReminderSent`
+- `HasInsurance`
 
-- Label (binary no-show target)
+Target label:
 
-## Dataset Strategy
+- `Label` (`true` for no-show, `false` otherwise)
 
-- Deterministic synthetic generation with fixed random seed
-- Supported range: 500 to 2000 rows
-- Risk logic includes:
-  - prior no-show history impact
-  - booking lead-time effect
-  - reminder impact
-  - insurance signal
-  - day-of-week and appointment-type adjustments
-- Class imbalance handling via ExampleWeight in training
+## Dataset Creation Strategy
 
-## Trainer and Evaluation
+Dataset generation now prioritizes historical appointments when available:
 
-- Trainer: FastTreeBinaryClassification
-- Split: 80/20 train/test
-- Metrics returned:
-  - Accuracy
-  - Precision
-  - Recall
-  - F1Score
-  - AUC
+- Uses completed and no-show historical appointments from the database.
+- Builds per-patient temporal history so `PreviousNoShows` and `PreviousCompletedVisits` are based on earlier appointments only.
+- Computes booking lead-time using appointment `CreatedAt` and appointment date.
+- Uses patient insurance flag where available.
 
-## Artifact Paths
+If historical rows are insufficient for the requested dataset size, synthetic rows are generated to fill the gap.
 
-- CSV dataset: [ml-artifacts/no-show/no_show_training_data.csv](../ml-artifacts/no-show/no_show_training_data.csv)
-- Model: [ml-artifacts/no-show/no_show_model.zip](../ml-artifacts/no-show/no_show_model.zip)
+- Supported range: `500` to `2000` rows
+- Deterministic random seed for reproducible synthetic augmentation
+- Class imbalance handled via `ExampleWeight`
 
-## API Usage
+## Training Flow (Refactored)
 
-- POST /api/Predictions/no-show/dataset?rows=1200
-- POST /api/Predictions/no-show/train
-- POST /api/Predictions/no-show/appointment/{appointmentId}?persist=true
+Training logic is separated into explicit stages:
 
-## Risk Mapping Used in UI
+1. Dataset creation/load
+2. Feature mapping pipeline (encoding + feature concatenation)
+3. Model training (FastTree binary classifier)
+4. Evaluation
+5. Persistence (model + latest metrics metadata)
 
-- Probability < 0.40: Low
-- 0.40 to 0.70: Medium
-- > 0.70: High
+## Evaluation Output
 
-## Current Limitation
+Latest evaluation payload includes:
 
-- Training data is synthetic; production quality depends on replacing with validated historical data.
+- Accuracy
+- Precision
+- Recall
+- F1Score
+- AUC
+- Confusion matrix counts (true/false positives/negatives when available)
+- Train row count
+- Test row count
+- Model path
+- Dataset path
+- Training timestamp (UTC)
+
+## Persistence
+
+Artifacts written to [ml-artifacts/no-show](../ml-artifacts/no-show):
+
+- `no_show_training_data.csv`
+- `no_show_model.zip`
+- `no_show_model_metrics.json`
+
+Additionally, latest model metrics are persisted in database audit logs (`AuditLogs`) under:
+
+- `EntityName = "PredictionResult"`
+- `ActionType = "NoShowModelMetricsStored"`
+
+## API Endpoints
+
+- `POST /api/Predictions/no-show/dataset?rows=1200`
+- `POST /api/Predictions/no-show/train`
+- `GET /api/Predictions/no-show/metrics/latest`
+- `POST /api/Predictions/no-show/appointment/{appointmentId}?persist=true`
+
+## Risk Buckets and Recommendation Behavior
+
+- Probability `< 0.40`: Low
+- Probability `0.40 - 0.70`: Medium
+- Probability `> 0.70`: High
+
+High-risk recommendations now return stronger operational guidance (direct call, explicit reconfirmation, same-day reminder, and waitlist backfill prep).
+
+## Evaluation Notes and Limitations
+
+- Synthetic/local training remains a limitation for production-grade calibration.
+- Historical training quality depends on appointment status integrity and reminder logging quality.
+- Model metrics from synthetic-augmented data should be treated as local validation signals, not clinical-grade performance claims.

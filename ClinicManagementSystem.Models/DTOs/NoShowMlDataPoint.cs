@@ -21,4 +21,6 @@ public class NoShowMlDataPoint
     public bool Label { get; set; }
 
     public float ExampleWeight { get; set; }
+
+    public string Source { get; set; } = string.Empty;
 }
