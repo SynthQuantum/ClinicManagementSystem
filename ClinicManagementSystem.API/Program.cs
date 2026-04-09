@@ -1,8 +1,10 @@
 using ClinicManagementSystem.API.Auth;
+using ClinicManagementSystem.API.BackgroundServices;
 using ClinicManagementSystem.API.Middleware;
 using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services;
+using ClinicManagementSystem.Services.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -79,6 +81,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddClinicServices();
+builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
+builder.Services.AddHostedService<ReminderProcessingHostedService>();
 
 var app = builder.Build();
 

@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @inject INotificationService NotificationData
 @inject ILogger<Notifications> Logger
+@using ClinicManagementSystem.Models.DTOs
 @using ClinicManagementSystem.Models.Entities
 @using ClinicManagementSystem.Services.Interfaces
 
@@ -11,30 +12,101 @@
 <RadzenStack Gap="1rem">
     <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
                  AlignItems="AlignItems.Center">
-        <RadzenText TextStyle="TextStyle.H4">Pending Notifications</RadzenText>
-        <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="@LoadAsync" />
+        <RadzenText TextStyle="TextStyle.H4">Notification Monitoring</RadzenText>
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+            <RadzenButton Text="Process Reminders" Icon="play_arrow" ButtonStyle="ButtonStyle.Primary"
+                          Click="ProcessReminders" Disabled="@_loading" />
+            <RadzenButton Text="Refresh" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadAsync"
+                          Disabled="@_loading" />
+        </RadzenStack>
     </RadzenStack>
 
-    <RadzenDataGrid Data="@_pending" TItem="Notification" AllowPaging="true" PageSize="10">
-        <Columns>
-            <RadzenDataGridColumn TItem="Notification" Property="ScheduledFor" Title="Scheduled"
-                                  FormatString="{0:yyyy-MM-dd HH:mm}" />
-            <RadzenDataGridColumn TItem="Notification" Property="Recipient" Title="Recipient" />
-            <RadzenDataGridColumn TItem="Notification" Property="NotificationType" Title="Type" />
-            <RadzenDataGridColumn TItem="Notification" Property="Status" Title="Status" />
-            <RadzenDataGridColumn TItem="Notification" Property="Message" Title="Message" />
-            <RadzenDataGridColumn TItem="Notification" Title="Actions" Width="110px">
-                <Template Context="item">
-                    <RadzenButton Icon="send" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
-                                  Click="@(() => Send(item.Id))" />
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-    </RadzenDataGrid>
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">@_message</RadzenAlert>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_error))
+    {
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_error</RadzenAlert>
+    }
+
+    @if (_summary is not null)
+    {
+        <RadzenRow Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Pending</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.PendingCount</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Sent</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.SentCount</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Failed</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.FailedCount</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Cancelled</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_summary.CancelledCount</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+    }
+
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6">Recent Notifications</RadzenText>
+        <RadzenDataGrid Data="@_recent" TItem="Notification" AllowPaging="true" PageSize="10">
+            <Columns>
+                <RadzenDataGridColumn TItem="Notification" Property="CreatedAt" Title="Created"
+                                      FormatString="{0:yyyy-MM-dd HH:mm}" />
+                <RadzenDataGridColumn TItem="Notification" Property="ScheduledFor" Title="Scheduled"
+                                      FormatString="{0:yyyy-MM-dd HH:mm}" />
+                <RadzenDataGridColumn TItem="Notification" Property="Recipient" Title="Recipient" />
+                <RadzenDataGridColumn TItem="Notification" Property="NotificationType" Title="Type" />
+                <RadzenDataGridColumn TItem="Notification" Property="Status" Title="Status" />
+                <RadzenDataGridColumn TItem="Notification" Property="FailureReason" Title="Failure Reason" />
+                <RadzenDataGridColumn TItem="Notification" Property="Message" Title="Message" />
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+    @if (_pendingDue.Count > 0)
+    {
+        <RadzenCard>
+            <RadzenText TextStyle="TextStyle.H6">Due Pending Notifications</RadzenText>
+            <RadzenDataGrid Data="@_pendingDue" TItem="Notification" AllowPaging="true" PageSize="5">
+                <Columns>
+                    <RadzenDataGridColumn TItem="Notification" Property="ScheduledFor" Title="Scheduled"
+                                          FormatString="{0:yyyy-MM-dd HH:mm}" />
+                    <RadzenDataGridColumn TItem="Notification" Property="Recipient" Title="Recipient" />
+                    <RadzenDataGridColumn TItem="Notification" Property="Message" Title="Message" />
+                    <RadzenDataGridColumn TItem="Notification" Title="Actions" Width="110px">
+                        <Template Context="item">
+                            <RadzenButton Icon="send" ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Small"
+                                          Click="@(() => Send(item.Id))" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+    }
 </RadzenStack>
 
 @code {
-    private IEnumerable<Notification> _pending = [];
+    private bool _loading;
+    private string? _message;
+    private string? _error;
+    private NotificationDashboardSummary? _summary;
+    private List<Notification> _recent = [];
+    private List<Notification> _pendingDue = [];
 
     protected override async Task OnInitializedAsync()
     {
@@ -43,13 +115,72 @@
 
     private async Task LoadAsync()
     {
-        Logger.LogInformation("Loading pending notifications");
-        _pending = await NotificationData.GetPendingAsync();
+        _loading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            Logger.LogInformation("Loading notification monitoring dashboard");
+            _summary = await NotificationData.GetSummaryAsync(30);
+            _recent = _summary.RecentNotifications.OrderByDescending(n => n.CreatedAt).ToList();
+            _pendingDue = (await NotificationData.GetPendingAsync(100)).OrderBy(n => n.ScheduledFor).ToList();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load notifications: {ex.Message}";
+            Logger.LogError(ex, "Failed to load notification monitoring dashboard");
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ProcessReminders()
+    {
+        _loading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            Logger.LogInformation("Manual reminder processing triggered from Notifications page");
+            var result = await NotificationData.ProcessRemindersAsync();
+            _message = $"Processed at {result.ProcessedAtUtc:u}. Created: {result.CreatedReminderCount}, Duplicates: {result.DuplicateReminderCount}, Due: {result.DuePendingCount}, Sent: {result.SentCount}, Failed: {result.FailedCount}.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to process reminders: {ex.Message}";
+            Logger.LogError(ex, "Manual reminder processing failed");
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 
     private async Task Send(Guid id)
     {
-        await NotificationData.SendAsync(id);
-        await LoadAsync();
+        _loading = true;
+        _message = null;
+        _error = null;
+
+        try
+        {
+            var sent = await NotificationData.SendAsync(id);
+            _message = sent ? "Notification sent successfully." : "Notification not found.";
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to send notification: {ex.Message}";
+            Logger.LogError(ex, "Manual notification send failed for {NotificationId}", id);
+        }
+        finally
+        {
+            _loading = false;
+        }
     }
 }

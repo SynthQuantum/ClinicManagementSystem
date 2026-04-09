@@ -48,6 +48,9 @@ sequenceDiagram
 - Seed data runs idempotently at startup.
 - Identity roles and development admin are seeded idempotently at startup.
 - ML inference is local with ML.NET and model files under [ml-artifacts/no-show](../ml-artifacts/no-show).
+- Notification reminders are processed by a hosted background service in the API (`ReminderProcessingHostedService`) using `INotificationService`.
+- Delivery providers are currently development-safe logging implementations (`LoggingEmailSender`, `LoggingSmsSender`) behind sender interfaces.
+- Reminder deduplication is enforced by appointment + reminder timestamp + recipient checks before insert.
 
 ## Authentication Architecture
 

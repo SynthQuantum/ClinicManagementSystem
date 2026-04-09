@@ -4,6 +4,7 @@ using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.Enums;
 using ClinicManagementSystem.Services;
 using ClinicManagementSystem.Services.Interfaces;
+using ClinicManagementSystem.Services.Options;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.Identity;
@@ -60,6 +61,7 @@ builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddClinicServices();
+builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
 
 var app = builder.Build();
 

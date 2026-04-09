@@ -31,6 +31,7 @@ Each solution project now has a matching unit-test project:
   - Patient create/get/delete (soft delete)
   - Staff create/update/delete (soft delete)
   - Appointment create/validation/conflict/status/delete
+  - Notification reminder creation, deduplication, send transitions, and failure reasons
   - Dashboard summary counts
   - ML service dataset generation, training metrics, and prediction output shape
 - API unit tests:
@@ -50,8 +51,8 @@ dotnet test .\ClinicManagementSystem.slnx
 
 ### Latest Result
 
-- Total tests: 23
-- Passed: 23
+- Total tests: 29
+- Passed: 29
 - Failed: 0
 - Command: `dotnet test .\ClinicManagementSystem.slnx`
 
@@ -88,6 +89,15 @@ dotnet test .\ClinicManagementSystem.slnx
 - API negative-path integration tests (validation and conflict responses)
 - Focused coverage reporting in CI per project
 - Component tests for form validation and submission flows in Blazor pages
+
+## Reminder Workflow Manual Scenarios
+
+- Create an appointment more than 24 hours in advance and run manual reminder processing.
+- Verify reminder notifications are created for available patient channels (email/phone).
+- Run processing again and verify duplicate reminders are not created.
+- Set a due notification and verify status transitions from `Pending` to `Sent`.
+- Use an invalid recipient and verify status becomes `Failed` with populated `FailureReason`.
+- Verify `/notifications` monitoring page reflects pending/sent/failed counts and recent history.
 
 ## Evidence Placeholder (to fill per sprint)
 
