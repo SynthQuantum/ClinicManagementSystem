@@ -32,10 +32,12 @@ Each solution project now has a matching unit-test project:
   - Staff create/update/delete (soft delete)
   - Appointment create/validation/conflict/status/delete
   - Notification reminder creation, deduplication, send transitions, and failure reasons
+  - Performance summary calculations, p95, error rate, and persistence flush behavior
   - Dashboard summary counts
   - ML service dataset generation, training metrics, and prediction output shape
 - API unit tests:
   - controller action branching and HTTP result mapping
+  - performance middleware request sample capture
 - API integration tests:
   - GET /api/Patients
   - GET /api/Appointments
@@ -52,7 +54,8 @@ dotnet test .\ClinicManagementSystem.slnx
 ### Latest Result
 
 - Total tests: 29
-- Passed: 29
+- Total tests: 32
+- Passed: 32
 - Failed: 0
 - Command: `dotnet test .\ClinicManagementSystem.slnx`
 

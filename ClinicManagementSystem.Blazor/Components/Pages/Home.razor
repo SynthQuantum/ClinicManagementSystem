@@ -2,6 +2,7 @@
 @attribute [Authorize(Roles = "Admin,Doctor")]
 @rendermode InteractiveServer
 @inject IDashboardService DashboardService
+@inject IPerformanceMonitoringService PerformanceMonitoringService
 @inject ILogger<Home> Logger
 @using ClinicManagementSystem.Models.DTOs
 @using ClinicManagementSystem.Services.Interfaces
@@ -122,19 +123,114 @@
         </RadzenCard>
 
         <RadzenCard>
-            <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
-            <RadzenText TextStyle="TextStyle.Body2">
-                This section will show patient no-show risk and schedule optimization suggestions once the ML.NET model is
-                integrated.
-            </RadzenText>
-        </RadzenCard>
-    }
-</RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                         AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.H6">API Performance Snapshot</RadzenText>
+                @if (_performanceSummary is not null)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption">Generated
+                        @_performanceSummary.GeneratedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</RadzenText>
+                    }
+                </RadzenStack>
+
+                @if (_performanceSummary is null || !_performanceSummary.MonitoringEnabled)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+                        Performance monitoring is disabled or no samples have been collected yet.
+                    </RadzenAlert>
+                }
+                else
+                {
+                    <RadzenRow Gap="1rem">
+                        <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Average Response Time</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5">@_performanceSummary.AverageLatencyMs.ToString("F2") ms
+                                </RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">p95 Response Time</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5">@_performanceSummary.P95LatencyMs.ToString("F2") ms
+                                </RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Error Rate</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5">@_performanceSummary.ErrorRate.ToString("F2")%</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                    </RadzenRow>
+
+                    <RadzenRow Gap="1rem">
+                        <RadzenColumn SizeXS="12" SizeLG="7">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.H6">Slowest Endpoints</RadzenText>
+                                <RadzenDataGrid Data="@_performanceSummary.SlowestEndpoints" TItem="PerformanceEndpointSummary"
+                                                AllowPaging="true" PageSize="5">
+                                    <Columns>
+                                        <RadzenDataGridColumn TItem="PerformanceEndpointSummary" Property="Method" Title="Method" />
+                                        <RadzenDataGridColumn TItem="PerformanceEndpointSummary" Property="Path" Title="Path" />
+                                        <RadzenDataGridColumn TItem="PerformanceEndpointSummary" Property="RequestCount"
+                                                              Title="Requests" />
+                                        <RadzenDataGridColumn TItem="PerformanceEndpointSummary" Property="AverageLatencyMs"
+                                                              Title="Avg ms" />
+                                        <RadzenDataGridColumn TItem="PerformanceEndpointSummary" Property="P95LatencyMs"
+                                                              Title="p95 ms" />
+                                        <RadzenDataGridColumn TItem="PerformanceEndpointSummary" Property="ErrorRate"
+                                                              Title="Error %" />
+                                    </Columns>
+                                </RadzenDataGrid>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn SizeXS="12" SizeLG="5">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.H6">Recent Failed Requests</RadzenText>
+                                @if (_performanceSummary.RecentFailedRequests.Any())
+                                {
+                                    <RadzenDataGrid Data="@_performanceSummary.RecentFailedRequests" TItem="RecentFailedRequestSummary"
+                                                    AllowPaging="true" PageSize="5">
+                                        <Columns>
+                                            <RadzenDataGridColumn TItem="RecentFailedRequestSummary" Property="TimestampUtc"
+                                                                  Title="Timestamp" FormatString="{0:yyyy-MM-dd HH:mm:ss}" />
+                                            <RadzenDataGridColumn TItem="RecentFailedRequestSummary" Property="Method" Title="Method" />
+                                            <RadzenDataGridColumn TItem="RecentFailedRequestSummary" Property="Path" Title="Path" />
+                                            <RadzenDataGridColumn TItem="RecentFailedRequestSummary" Property="StatusCode"
+                                                                  Title="Status" />
+                                            <RadzenDataGridColumn TItem="RecentFailedRequestSummary" Property="ElapsedMilliseconds"
+                                                                  Title="Latency ms" />
+                                        </Columns>
+                                    </RadzenDataGrid>
+                                }
+                                else
+                                {
+                                    <RadzenAlert AlertStyle="AlertStyle.Success" ShowIcon="true">
+                                        No recent failed requests in the current summary window.
+                                    </RadzenAlert>
+                                }
+                            </RadzenCard>
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+            </RadzenCard>
+
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2">
+                    This section will show patient no-show risk and schedule optimization suggestions once the ML.NET model is
+                    integrated.
+                </RadzenText>
+            </RadzenCard>
+        }
+    </RadzenStack>
 
 @code {
     private DashboardSummary? _summary;
     private IEnumerable<AppointmentTrendPoint> _trend = [];
     private IEnumerable<StaffWorkloadSummary> _workload = [];
+    private PerformanceSummary? _performanceSummary;
     private bool _loading = true;
     private string? _error;
 
@@ -153,6 +249,7 @@
             _summary = await DashboardService.GetSummaryAsync();
             _trend = await DashboardService.GetAppointmentTrendAsync(30);
             _workload = await DashboardService.GetStaffWorkloadAsync();
+            _performanceSummary = await PerformanceMonitoringService.GetSummaryAsync();
             Logger.LogInformation("Dashboard loaded successfully");
         }
         catch (Exception ex)

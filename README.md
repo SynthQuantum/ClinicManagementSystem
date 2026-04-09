@@ -12,6 +12,7 @@ It now includes production-ready authentication and role-based authorization via
 - Staff module: create, read, update, soft delete
 - Appointment module: create, read, update, delete (soft), status updates
 - Scheduling conflict checks: prevents overlapping appointments for the same staff member or patient
+- Lightweight performance monitoring: request latency capture, summary statistics, slow-endpoint tracking, and recent failed request visibility
 - Dashboard module:
   - total patients
   - total appointments
@@ -21,6 +22,8 @@ It now includes production-ready authentication and role-based authorization via
   - no-show count and no-show rate
   - appointment trend
   - staff workload summary
+  - API performance summary widget
+  - slowest endpoints and recent failed requests view
 - Prediction module:
   - local ML.NET synthetic dataset generation
   - local ML.NET FastTree binary training and evaluation
@@ -57,6 +60,7 @@ flowchart LR
 ```
 
 More details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+Performance monitoring details: [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
 
 ## Setup
 
@@ -256,6 +260,18 @@ dotnet run --project ClinicManagementSystem.API
 ```powershell
 dotnet run --project ClinicManagementSystem.Blazor
 ```
+
+## Performance Monitoring
+
+The API now captures lightweight request performance samples and surfaces summary insights in the Blazor dashboard.
+
+- API endpoint: `GET /api/performance/summary`
+- Development reset endpoint: `POST /api/performance/reset`
+- Dashboard widget: average response time, p95 latency, slowest endpoints, recent failed requests
+
+### Sample Screenshot Description
+
+- Dashboard view with clinic KPI cards on top and a performance monitoring card below showing average response time, p95 latency, slowest API endpoints, and a recent failed requests table.
 
 ## ML.NET Dataset Generation and Training
 

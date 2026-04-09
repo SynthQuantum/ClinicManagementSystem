@@ -62,6 +62,7 @@ builder.Services.AddHttpContextAccessor();
 
 builder.Services.AddClinicServices();
 builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
+builder.Services.Configure<PerformanceMonitoringOptions>(builder.Configuration.GetSection(PerformanceMonitoringOptions.SectionName));
 
 var app = builder.Build();
 

@@ -51,6 +51,8 @@ sequenceDiagram
 - Notification reminders are processed by a hosted background service in the API (`ReminderProcessingHostedService`) using `INotificationService`.
 - Delivery providers are currently development-safe logging implementations (`LoggingEmailSender`, `LoggingSmsSender`) behind sender interfaces.
 - Reminder deduplication is enforced by appointment + reminder timestamp + recipient checks before insert.
+- API request performance is captured by `PerformanceMonitoringMiddleware` and summarized by `IPerformanceMonitoringService`.
+- Performance samples can be persisted to the `PerformanceSamples` table through the `PerformanceSampleFlushHostedService` background process.
 
 ## Authentication Architecture
 

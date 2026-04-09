@@ -82,7 +82,9 @@ builder.Services.AddAuthorization();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddClinicServices();
 builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
+builder.Services.Configure<PerformanceMonitoringOptions>(builder.Configuration.GetSection(PerformanceMonitoringOptions.SectionName));
 builder.Services.AddHostedService<ReminderProcessingHostedService>();
+builder.Services.AddHostedService<PerformanceSampleFlushHostedService>();
 
 var app = builder.Build();
 
@@ -144,6 +146,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<PerformanceMonitoringMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<RequestAuditLoggingMiddleware>();
 app.UseAuthorization();

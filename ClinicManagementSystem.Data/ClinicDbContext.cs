@@ -16,6 +16,7 @@ public class ClinicDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Gu
     public DbSet<Appointment> Appointments => Set<Appointment>();
     public DbSet<VisitRecord> VisitRecords => Set<VisitRecord>();
     public DbSet<Notification> Notifications => Set<Notification>();
+    public DbSet<PerformanceSample> PerformanceSamples => Set<PerformanceSample>();
     public DbSet<PredictionResult> PredictionResults => Set<PredictionResult>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<ClinicSettings> ClinicSettings => Set<ClinicSettings>();
@@ -40,6 +41,7 @@ public class ClinicDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Gu
         modelBuilder.Entity<Appointment>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<VisitRecord>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Notification>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<PerformanceSample>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<PredictionResult>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<AuditLog>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ClinicSettings>().HasQueryFilter(e => !e.IsDeleted);
@@ -105,6 +107,13 @@ public class ClinicDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Gu
             .WithMany(a => a.PredictionResults)
             .HasForeignKey(pr => pr.AppointmentId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<PerformanceSample>()
+            .HasIndex(p => new { p.RequestTimestampUtc, p.Path });
+
+        modelBuilder.Entity<PerformanceSample>()
+            .Property(p => p.ElapsedMilliseconds)
+            .HasPrecision(10, 2);
 
         modelBuilder.Entity<Appointment>()
             .Property(a => a.NoShowProbability)
