@@ -17,7 +17,7 @@
                  AlignItems="AlignItems.Center">
         <RadzenText TextStyle="TextStyle.H4">Appointment Details</RadzenText>
         <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-            <RadzenButton Text="Predict Risk" Icon="psychology" ButtonStyle="ButtonStyle.Warning"
+            <RadzenButton Text="Recalculate Risk" Icon="psychology" ButtonStyle="ButtonStyle.Warning"
                           Click="RunPrediction" />
             <RadzenButton Text="Edit" Icon="edit" ButtonStyle="ButtonStyle.Secondary"
                           Click="@(() => Nav.NavigateTo($"/appointments/{Id}/edit"))" />
@@ -44,16 +44,16 @@
     }
     else
     {
-        @if (_prediction is not null)
-        {
-            <RadzenAlert
-                AlertStyle="@(_prediction.RiskLevel == "High" ? AlertStyle.Danger : _prediction.RiskLevel == "Medium" ? AlertStyle.Warning : AlertStyle.Success)"
-                ShowIcon="true">
-                <strong>No-Show Risk: @_prediction.RiskLevel</strong> (@(Math.Round(_prediction.Probability * 100, 1))%)
-                <br />
-                Recommendation: @_prediction.Recommendation
-            </RadzenAlert>
-        }
+        <RadzenCard Style=@($"border-left: 5px solid {GetRiskColor(CurrentRiskLabel)};")>
+            <RadzenStack Gap=" 0.25rem">
+                <RadzenText TextStyle="TextStyle.H6">No-Show Risk</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <RadzenBadge BadgeStyle="@GetRiskBadgeStyle(CurrentRiskLabel)" Text="@($"{CurrentRiskLabel} Risk")" />
+                    <RadzenText TextStyle="TextStyle.Body1">Probability: @CurrentRiskProbabilityDisplay</RadzenText>
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Body2"><strong>Recommendation:</strong> @CurrentRecommendation</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
 
         <RadzenCard>
             <RadzenRow Gap="1rem">
@@ -83,12 +83,12 @@
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeMD="4">
                     <RadzenText TextStyle="TextStyle.Overline">Status</RadzenText>
-                    <RadzenBadge BadgeStyle="@GetBadgeStyle(_appointment.Status)" Text="@_appointment.Status.ToString()" />
+                    <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(_appointment.Status)"
+                                 Text="@_appointment.Status.ToString()" />
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeMD="4">
-                    <RadzenText TextStyle="TextStyle.Overline">No-Show Risk</RadzenText>
-                    <RadzenBadge BadgeStyle="@GetRiskBadgeStyle(_appointment.NoShowProbability)"
-                                 Text="@GetRiskLabel(_appointment.NoShowProbability)" />
+                    <RadzenText TextStyle="TextStyle.Overline">Reminder Sent</RadzenText>
+                    <RadzenText>@(_appointment.ReminderSent ? "Yes" : "No")</RadzenText>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12">
                     <RadzenText TextStyle="TextStyle.Overline">Reason</RadzenText>
@@ -99,13 +99,6 @@
                     <RadzenText>@(_appointment.Notes ?? "No notes")</RadzenText>
                 </RadzenColumn>
             </RadzenRow>
-        </RadzenCard>
-
-        <RadzenCard>
-            <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
-            <RadzenText TextStyle="TextStyle.Body2">
-                Inference is local and private. This appointment can be scored with ML.NET and stored for workflow tracking.
-            </RadzenText>
         </RadzenCard>
     }
 </RadzenStack>
@@ -118,9 +111,31 @@
     private bool _loading = true;
     private string? _error;
 
+    private string CurrentRiskLabel
+        => _prediction?.RiskLevel
+            ?? GetRiskLabelFromProbability(_appointment?.NoShowProbability, _appointment?.IsPredictedNoShow ?? false);
+
+    private string CurrentRiskProbabilityDisplay
+        => _prediction is not null
+            ? $"{Math.Round(_prediction.Probability * 100, 1)}%"
+            : _appointment?.NoShowProbability is decimal probability
+                ? $"{Math.Round(probability * 100, 1)}%"
+                : "Not scored";
+
+    private string CurrentRecommendation
+        => _prediction?.Recommendation ?? GetRecommendation(CurrentRiskLabel);
+
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Loading appointment detail {AppointmentId}", Id);
+        await LoadAppointmentAsync();
+    }
+
+    private async Task LoadAppointmentAsync()
+    {
+        _loading = true;
+        _error = null;
+
         try
         {
             _appointment = await AppointmentService.GetByIdAsync(Id);
@@ -142,7 +157,7 @@
         try
         {
             _prediction = await PredictionService.PredictNoShowForAppointmentAsync(Id, persistResult: true);
-            _appointment = await AppointmentService.GetByIdAsync(Id);
+            await LoadAppointmentAsync();
         }
         catch (Exception ex)
         {
@@ -151,34 +166,47 @@
         }
     }
 
-    private static BadgeStyle GetBadgeStyle(AppointmentStatus status) => status switch
+    private static BadgeStyle GetStatusBadgeStyle(AppointmentStatus status) => status switch
     {
         AppointmentStatus.Completed => BadgeStyle.Success,
         AppointmentStatus.Cancelled => BadgeStyle.Warning,
         AppointmentStatus.NoShow => BadgeStyle.Danger,
         AppointmentStatus.Scheduled => BadgeStyle.Info,
+        AppointmentStatus.Confirmed => BadgeStyle.Primary,
         _ => BadgeStyle.Secondary
     };
 
-    private static string GetRiskLabel(decimal? probability)
+    private static string GetRiskLabelFromProbability(decimal? probability, bool isPredictedNoShow)
     {
         if (!probability.HasValue)
         {
-            return "Not Scored";
+            return isPredictedNoShow ? "High" : "Not Scored";
         }
 
-        var value = (double)probability.Value;
-        return value < 0.40 ? "Low" : value <= 0.70 ? "Medium" : "High";
+        return probability < 0.40m ? "Low" : probability <= 0.70m ? "Medium" : "High";
     }
 
-    private static BadgeStyle GetRiskBadgeStyle(decimal? probability)
+    private static BadgeStyle GetRiskBadgeStyle(string riskLabel) => riskLabel switch
     {
-        return GetRiskLabel(probability) switch
-        {
-            "High" => BadgeStyle.Danger,
-            "Medium" => BadgeStyle.Warning,
-            "Low" => BadgeStyle.Success,
-            _ => BadgeStyle.Secondary
-        };
-    }
+        "High" => BadgeStyle.Danger,
+        "Medium" => BadgeStyle.Warning,
+        "Low" => BadgeStyle.Success,
+        _ => BadgeStyle.Secondary
+    };
+
+    private static string GetRiskColor(string riskLabel) => riskLabel switch
+    {
+        "High" => "#d32f2f",
+        "Medium" => "#ed6c02",
+        "Low" => "#2e7d32",
+        _ => "#607d8b"
+    };
+
+    private static string GetRecommendation(string riskLabel) => riskLabel switch
+    {
+        "High" => "Confirm attendance by phone, send same-day reminder, and prepare backup slot.",
+        "Medium" => "Send additional reminder and request confirmation 24 hours before visit.",
+        "Low" => "Continue standard reminder workflow.",
+        _ => "Run risk calculation to generate recommendation."
+    };
 }

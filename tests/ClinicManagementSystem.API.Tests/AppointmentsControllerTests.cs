@@ -35,7 +35,7 @@ public class AppointmentsControllerTests
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeEquivalentTo(appointments);
-        service.GetAllCalls.Should().Be(1);
+        service.SearchCalls.Should().Be(1);
     }
 
     // -----------------------------------------------------------------------
@@ -50,7 +50,7 @@ public class AppointmentsControllerTests
         var service = new FakeAppointmentService { ByPatient = patientAppts };
         var sut = CreateController(service);
 
-        var result = await sut.GetAll(null, patientId, null);
+        var result = await sut.GetAll(patientId: patientId);
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeEquivalentTo(patientAppts);
@@ -69,7 +69,7 @@ public class AppointmentsControllerTests
         var service = new FakeAppointmentService { ByStaff = staffAppts };
         var sut = CreateController(service);
 
-        var result = await sut.GetAll(null, null, staffId);
+        var result = await sut.GetAll(staffMemberId: staffId);
 
         var ok = result.Result.Should().BeOfType<OkObjectResult>().Subject;
         ok.Value.Should().BeEquivalentTo(staffAppts);
@@ -310,12 +310,45 @@ public class AppointmentsControllerTests
         public Guid GetByPatientId { get; private set; }
         public Guid GetByStaffId { get; private set; }
         public DateTime GetByDateValue { get; private set; }
+        public int SearchCalls { get; private set; }
         public int GetAllCalls { get; private set; }
 
         public Task<IEnumerable<Appointment>> GetAllAsync()
         {
             GetAllCalls++;
             return Task.FromResult(All);
+        }
+
+        public Task<IEnumerable<Appointment>> SearchAsync(
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            Guid? patientId = null,
+            Guid? staffMemberId = null,
+            AppointmentStatus? status = null,
+            bool highRiskOnly = false)
+        {
+            SearchCalls++;
+            IEnumerable<Appointment> query = All;
+
+            if (patientId.HasValue)
+            {
+                GetByPatientId = patientId.Value;
+                query = ByPatient;
+            }
+
+            if (staffMemberId.HasValue)
+            {
+                GetByStaffId = staffMemberId.Value;
+                query = ByStaff;
+            }
+
+            if (fromDate.HasValue && toDate.HasValue && fromDate.Value.Date == toDate.Value.Date)
+            {
+                GetByDateValue = fromDate.Value;
+                query = ByDate;
+            }
+
+            return Task.FromResult(query);
         }
 
         public Task<IEnumerable<Appointment>> GetByPatientAsync(Guid patientId)

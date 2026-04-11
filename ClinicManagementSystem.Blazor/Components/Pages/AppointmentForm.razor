@@ -23,29 +23,33 @@
                       Click="@(() => Nav.NavigateTo("/appointments"))" />
     </RadzenStack>
 
-    @if (_prediction is not null)
+    @if (!string.IsNullOrWhiteSpace(_validationMessage))
     {
-        <RadzenAlert AlertStyle="@(_prediction.WillNoShow ? AlertStyle.Danger : AlertStyle.Success)" ShowIcon="true">
-            No-Show Prediction: <strong>@_prediction.RiskLevel Risk</strong>
-            (@(Math.Round(_prediction.Probability * 100, 1))%)
-            <br />
-            Recommendation: @_prediction.Recommendation
-        </RadzenAlert>
+        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">@_validationMessage</RadzenAlert>
     }
 
     @if (!string.IsNullOrWhiteSpace(_conflictWarning))
     {
-        <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">
-            @_conflictWarning
+        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+            <strong>Scheduling Conflict</strong><br />
+            @_conflictWarning<br />
+            Try changing staff member, date, or time range.
         </RadzenAlert>
     }
 
-    <RadzenCard>
-        <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
-        <RadzenText TextStyle="TextStyle.Body2">
-            This screen runs local ML.NET no-show inference when a trained model is available, with automatic rule-based fallback.
-        </RadzenText>
-    </RadzenCard>
+    @if (_prediction is not null)
+    {
+        <RadzenCard Style=@($"border-left: 5px solid {GetRiskColor(_prediction.RiskLevel)};")>
+            <RadzenStack Gap="0.25rem">
+                <RadzenText TextStyle="TextStyle.H6">No-Show Risk Assessment</RadzenText>
+                <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                    <RadzenBadge Text="@($"{_prediction.RiskLevel} Risk")" BadgeStyle="@GetRiskBadgeStyle(_prediction.RiskLevel)" />
+                    <RadzenText TextStyle="TextStyle.Body1">Probability: @Math.Round(_prediction.Probability * 100, 1)%</RadzenText>
+                </RadzenStack>
+                <RadzenText TextStyle="TextStyle.Body2"><strong>Recommendation:</strong> @_prediction.Recommendation</RadzenText>
+            </RadzenStack>
+        </RadzenCard>
+    }
 
     <RadzenCard>
         <RadzenTemplateForm TItem="Appointment" Data="@_appointment" Submit="@OnSubmit">
@@ -54,7 +58,7 @@
                     <RadzenFormField Text="Patient" Style="width:100%">
                         <RadzenDropDown @bind-Value="_appointment.PatientId"
                                         Data="@_patients" TextProperty="FullName" ValueProperty="Id"
-                                        Name="PatientId" Placeholder="Select patient" />
+                                        Name="PatientId" Placeholder="Select patient" Style="width:100%" />
                         <RadzenRequiredValidator Component="PatientId" Text="Patient is required" />
                     </RadzenFormField>
                 </RadzenColumn>
@@ -62,54 +66,56 @@
                     <RadzenFormField Text="Doctor / Staff" Style="width:100%">
                         <RadzenDropDown @bind-Value="_appointment.StaffMemberId"
                                         Data="@_staff" TextProperty="FullName" ValueProperty="Id"
-                                        Name="StaffMemberId" Placeholder="Select staff" />
-                        <RadzenRequiredValidator Component="StaffMemberId" Text="Staff is required" />
+                                        Name="StaffMemberId" Placeholder="Select staff" Style="width:100%" />
+                        <RadzenRequiredValidator Component="StaffMemberId" Text="Staff member is required" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeSM="6">
                     <RadzenFormField Text="Appointment Type" Style="width:100%">
                         <RadzenDropDown @bind-Value="_appointment.AppointmentType"
-                                        Data="@(Enum.GetValues<AppointmentType>())" Name="AppointmentType" />
+                                        Data="@(Enum.GetValues<AppointmentType>())" Name="AppointmentType" Style="width:100%" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeSM="6">
                     <RadzenFormField Text="Status" Style="width:100%">
                         <RadzenDropDown @bind-Value="_appointment.Status"
-                                        Data="@(Enum.GetValues<AppointmentStatus>())" Name="Status" />
+                                        Data="@(Enum.GetValues<AppointmentStatus>())" Name="Status" Style="width:100%" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeSM="4">
                     <RadzenFormField Text="Date" Style="width:100%">
-                        <RadzenDatePicker @bind-Value="_appointment.AppointmentDate" Name="AppointmentDate" DateFormat="yyyy-MM-dd" />
+                        <RadzenDatePicker @bind-Value="_appointment.AppointmentDate" Name="AppointmentDate" DateFormat="yyyy-MM-dd"
+                                          Style="width:100%" />
+                        <RadzenRequiredValidator Component="AppointmentDate" Text="Appointment date is required" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeSM="4">
                     <RadzenFormField Text="Start Time" Style="width:100%">
                         <RadzenDatePicker @bind-Value="_startTimeBind" ShowTime="true" ShowSeconds="false"
-                                          TimeOnly="true" DateFormat="HH:mm" />
+                                          TimeOnly="true" DateFormat="HH:mm" Style="width:100%" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12" SizeSM="4">
                     <RadzenFormField Text="End Time" Style="width:100%">
                         <RadzenDatePicker @bind-Value="_endTimeBind" ShowTime="true" ShowSeconds="false"
-                                          TimeOnly="true" DateFormat="HH:mm" />
+                                          TimeOnly="true" DateFormat="HH:mm" Style="width:100%" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12">
                     <RadzenFormField Text="Reason" Style="width:100%">
-                        <RadzenTextBox @bind-Value="_appointment.Reason" />
+                        <RadzenTextBox @bind-Value="_appointment.Reason" Name="Reason" MaxLength="500" Style="width:100%" />
                     </RadzenFormField>
                 </RadzenColumn>
                 <RadzenColumn SizeXS="12">
                     <RadzenFormField Text="Notes" Style="width:100%">
-                        <RadzenTextArea @bind-Value="_appointment.Notes" Rows="3" />
+                        <RadzenTextArea @bind-Value="_appointment.Notes" Name="Notes" Rows="3" MaxLength="2000" Style="width:100%" />
                     </RadzenFormField>
                 </RadzenColumn>
 
                 <RadzenColumn SizeXS="12">
                     <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
-                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save" Icon="save" ButtonStyle="ButtonStyle.Primary" />
-                        <RadzenButton Text="Predict No-Show" Icon="psychology" ButtonStyle="ButtonStyle.Warning"
+                        <RadzenButton ButtonType="ButtonType.Submit" Text="Save Appointment" Icon="save" ButtonStyle="ButtonStyle.Primary" />
+                        <RadzenButton Text="Run Risk Check" Icon="psychology" ButtonStyle="ButtonStyle.Warning"
                                       ButtonType="ButtonType.Button" Click="@RunPrediction" />
                         <RadzenButton Text="Cancel" Icon="cancel" ButtonStyle="ButtonStyle.Light"
                                       Click="@(() => Nav.NavigateTo("/appointments"))" />
@@ -125,14 +131,14 @@
 @code {
     [Parameter] public Guid? Id { get; set; }
 
-    private Appointment _appointment = new() { AppointmentDate = DateTime.Today };
+    private Appointment _appointment = new() { AppointmentDate = DateTime.Today, Status = AppointmentStatus.Scheduled };
     private IEnumerable<Patient> _patients = [];
     private IEnumerable<StaffMember> _staff = [];
     private bool _isNew = true;
     private NoShowPredictionOutput? _prediction;
     private string? _conflictWarning;
+    private string? _validationMessage;
 
-    // Radzen DatePicker binds to DateTime for time-only usage
     private DateTime _startTimeBind = DateTime.Today.AddHours(9);
     private DateTime _endTimeBind = DateTime.Today.AddHours(9).AddMinutes(30);
 
@@ -158,8 +164,22 @@
     private async Task OnSubmit(Appointment appointment)
     {
         _conflictWarning = null;
+        _validationMessage = ValidateForm();
+        if (!string.IsNullOrWhiteSpace(_validationMessage))
+        {
+            Notify.Notify(new NotificationMessage
+            {
+                Severity = NotificationSeverity.Warning,
+                Summary = "Please review the form",
+                Detail = _validationMessage,
+                Duration = 5000
+            });
+            return;
+        }
+
         appointment.StartTime = _startTimeBind.TimeOfDay;
         appointment.EndTime = _endTimeBind.TimeOfDay;
+
         try
         {
             if (_isNew)
@@ -179,6 +199,7 @@
         }
         catch (ArgumentException ex)
         {
+            _validationMessage = ex.Message;
             Notify.Notify(new NotificationMessage
             {
                 Severity = NotificationSeverity.Warning,
@@ -202,21 +223,73 @@
 
     private async Task RunPrediction()
     {
+        _validationMessage = ValidateForm(skipTimeValidation: false);
+        if (!string.IsNullOrWhiteSpace(_validationMessage))
+        {
+            return;
+        }
+
         var patient = _patients.FirstOrDefault(p => p.Id == _appointment.PatientId);
-        if (patient is null) return;
+        if (patient is null)
+        {
+            _validationMessage = "Select a patient before running risk check.";
+            return;
+        }
 
         Logger.LogInformation("Running no-show prediction for patient {PatientId}", patient.Id);
         var input = new NoShowPredictionInput
         {
             PatientAge = patient.Age,
-            DaysBetweenBookingAndAppointment = (int)(_appointment.AppointmentDate - DateTime.Today).TotalDays,
+            DaysBetweenBookingAndAppointment = Math.Max(0, (int)(_appointment.AppointmentDate.Date - DateTime.Today).TotalDays),
             AppointmentType = _appointment.AppointmentType,
             DayOfWeek = _appointment.AppointmentDate.DayOfWeek,
             HasInsurance = patient.HasInsurance,
-            HasReminderSent = _appointment.ReminderSent
+            HasReminderSent = _appointment.ReminderSent,
+            PreviousCompletedCount = 0,
+            PreviousNoShowCount = 0
         };
+
         _prediction = await PredictionService.PredictNoShowAsync(input);
         _appointment.IsPredictedNoShow = _prediction.WillNoShow;
         _appointment.NoShowProbability = _prediction.Probability;
     }
+
+    private string? ValidateForm(bool skipTimeValidation = false)
+    {
+        if (_appointment.PatientId == Guid.Empty)
+        {
+            return "Patient is required.";
+        }
+
+        if (_appointment.StaffMemberId == Guid.Empty)
+        {
+            return "Staff member is required.";
+        }
+
+        if (_appointment.AppointmentDate == default)
+        {
+            return "Appointment date is required.";
+        }
+
+        if (!skipTimeValidation && _startTimeBind.TimeOfDay >= _endTimeBind.TimeOfDay)
+        {
+            return "Start Time must be earlier than End Time.";
+        }
+
+        return null;
+    }
+
+    private static BadgeStyle GetRiskBadgeStyle(string riskLevel) => riskLevel switch
+    {
+        "High" => BadgeStyle.Danger,
+        "Medium" => BadgeStyle.Warning,
+        _ => BadgeStyle.Success
+    };
+
+    private static string GetRiskColor(string riskLevel) => riskLevel switch
+    {
+        "High" => "#d32f2f",
+        "Medium" => "#ed6c02",
+        _ => "#2e7d32"
+    };
 }

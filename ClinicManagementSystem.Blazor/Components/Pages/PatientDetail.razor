@@ -7,13 +7,22 @@
 @inject NavigationManager Nav
 @inject ILogger<PatientDetail> Logger
 @using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
 @using ClinicManagementSystem.Services.Interfaces
 
 <PageTitle>Patient Detail</PageTitle>
 
-@if (_patient is null)
+@if (_loading)
 {
     <RadzenProgressBarCircular ShowValue="false" Mode="ProgressBarMode.Indeterminate" />
+}
+else if (!string.IsNullOrWhiteSpace(_error))
+{
+    <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">@_error</RadzenAlert>
+}
+else if (_patient is null)
+{
+    <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">Patient not found.</RadzenAlert>
 }
 else
 {
@@ -29,20 +38,35 @@ else
             </RadzenStack>
         </RadzenStack>
 
+        <RadzenRow Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeSM="4">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Age</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_patient.Age</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="4">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Total Appointments</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_appointments.Count</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="4">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.Overline">Visit Records</RadzenText>
+                    <RadzenText TextStyle="TextStyle.H5">@_visitRecords.Count</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
+
         <RadzenTabs>
             <Tabs>
-                <!-- Demographics -->
                 <RadzenTabsItem Text="Demographics">
                     <RadzenCard>
                         <RadzenRow Gap="1rem">
                             <RadzenColumn SizeXS="12" SizeSM="6">
                                 <RadzenFormField Text="Date of Birth">
                                     <RadzenText>@_patient.DateOfBirth.ToString("yyyy-MM-dd")</RadzenText>
-                                </RadzenFormField>
-                            </RadzenColumn>
-                            <RadzenColumn SizeXS="12" SizeSM="6">
-                                <RadzenFormField Text="Age">
-                                    <RadzenText>@_patient.Age</RadzenText>
                                 </RadzenFormField>
                             </RadzenColumn>
                             <RadzenColumn SizeXS="12" SizeSM="6">
@@ -74,22 +98,28 @@ else
                     </RadzenCard>
                 </RadzenTabsItem>
 
-                <!-- Insurance -->
                 <RadzenTabsItem Text="Insurance">
                     <RadzenCard>
                         <RadzenRow Gap="1rem">
-                            <RadzenColumn SizeXS="12" SizeSM="6">
+                            <RadzenColumn SizeXS="12" SizeSM="4">
+                                <RadzenFormField Text="Has Insurance">
+                                    <RadzenBadge
+                                    BadgeStyle="@(_patient.HasInsurance ? BadgeStyle.Success : BadgeStyle.Warning)"
+                                    Text="@(_patient.HasInsurance ? "Yes" : "No")" />
+                                </RadzenFormField>
+                            </RadzenColumn>
+                            <RadzenColumn SizeXS="12" SizeSM="4">
                                 <RadzenFormField Text="Provider">
                                     <RadzenText>@(_patient.InsuranceProvider ?? "—")</RadzenText>
                                 </RadzenFormField>
                             </RadzenColumn>
-                            <RadzenColumn SizeXS="12" SizeSM="6">
+                            <RadzenColumn SizeXS="12" SizeSM="4">
                                 <RadzenFormField Text="Policy Number">
                                     <RadzenText>@(_patient.InsurancePolicyNumber ?? "—")</RadzenText>
                                 </RadzenFormField>
                             </RadzenColumn>
-                            <RadzenColumn SizeXS="12" SizeSM="6">
-                                <RadzenFormField Text="Expiry Date">
+                            <RadzenColumn SizeXS="12" SizeSM="4">
+                                <RadzenFormField Text="Insurance Expiry">
                                     <RadzenText>@(_patient.InsuranceExpiryDate?.ToString("yyyy-MM-dd") ?? "—")</RadzenText>
                                 </RadzenFormField>
                             </RadzenColumn>
@@ -97,54 +127,41 @@ else
                     </RadzenCard>
                 </RadzenTabsItem>
 
-                <!-- Emergency Contact -->
-                <RadzenTabsItem Text="Emergency Contact">
-                    <RadzenCard>
-                        <RadzenRow Gap="1rem">
-                            <RadzenColumn SizeXS="12" SizeSM="6">
-                                <RadzenFormField Text="Name">
-                                    <RadzenText>@(_patient.EmergencyContactName ?? "—")</RadzenText>
-                                </RadzenFormField>
-                            </RadzenColumn>
-                            <RadzenColumn SizeXS="12" SizeSM="6">
-                                <RadzenFormField Text="Phone">
-                                    <RadzenText>@(_patient.EmergencyContactPhone ?? "—")</RadzenText>
-                                </RadzenFormField>
-                            </RadzenColumn>
-                            <RadzenColumn SizeXS="12" SizeSM="6">
-                                <RadzenFormField Text="Relationship">
-                                    <RadzenText>@(_patient.EmergencyContactRelationship ?? "—")</RadzenText>
-                                </RadzenFormField>
-                            </RadzenColumn>
-                        </RadzenRow>
-                    </RadzenCard>
-                </RadzenTabsItem>
-
-                <!-- Appointments -->
-                <RadzenTabsItem Text="Appointments">
+                <RadzenTabsItem Text="Appointment History">
                     <RadzenDataGrid Data="@_appointments" TItem="Appointment" AllowSorting="true" AllowPaging="true"
-                                    PageSize="10">
+                                    PageSize="10" EmptyText="No appointments found for this patient.">
                         <Columns>
                             <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
                                                   FormatString="{0:yyyy-MM-dd}" />
-                            <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Time" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Start" Width="90px" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="EndTime" Title="End" Width="90px" />
                             <RadzenDataGridColumn TItem="Appointment" Property="AppointmentType" Title="Type" />
-                            <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status" />
-                            <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Doctor" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status">
+                                <Template Context="appt">
+                                    <RadzenBadge BadgeStyle="@GetStatusBadgeStyle(appt.Status)"
+                                                 Text="@appt.Status.ToString()" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="Appointment" Title="Risk" Width="140px">
+                                <Template Context="appt">
+                                    <RadzenBadge BadgeStyle="@GetRiskBadgeStyle(appt)" Text="@GetRiskLabel(appt)" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Staff" />
                         </Columns>
                     </RadzenDataGrid>
                 </RadzenTabsItem>
 
-                <!-- Visit Records -->
-                <RadzenTabsItem Text="Visit Records">
+                <RadzenTabsItem Text="Visit Record History">
                     <RadzenDataGrid Data="@_visitRecords" TItem="VisitRecord" AllowSorting="true" AllowPaging="true"
-                                    PageSize="10">
+                                    PageSize="10" EmptyText="No visit records found for this patient.">
                         <Columns>
                             <RadzenDataGridColumn TItem="VisitRecord" Property="VisitDate" Title="Date"
                                                   FormatString="{0:yyyy-MM-dd}" />
                             <RadzenDataGridColumn TItem="VisitRecord" Property="Diagnosis" Title="Diagnosis" />
                             <RadzenDataGridColumn TItem="VisitRecord" Property="Treatment" Title="Treatment" />
-                            <RadzenDataGridColumn TItem="VisitRecord" Property="StaffMember.FullName" Title="Doctor" />
+                            <RadzenDataGridColumn TItem="VisitRecord" Property="Prescription" Title="Prescription" />
+                            <RadzenDataGridColumn TItem="VisitRecord" Property="StaffMember.FullName" Title="Staff" />
                         </Columns>
                     </RadzenDataGrid>
                 </RadzenTabsItem>
@@ -157,18 +174,73 @@ else
     [Parameter] public Guid Id { get; set; }
 
     private Patient? _patient;
-    private IEnumerable<Appointment> _appointments = [];
-    private IEnumerable<VisitRecord> _visitRecords = [];
+    private List<Appointment> _appointments = [];
+    private List<VisitRecord> _visitRecords = [];
+    private bool _loading = true;
+    private string? _error;
 
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("Loading patient detail for {PatientId}", Id);
-        _patient = await PatientService.GetByIdAsync(Id);
-        if (_patient is not null)
+
+        try
         {
-            _appointments = await AppointmentService.GetByPatientAsync(Id);
-            _visitRecords = await VisitRecordService.GetByPatientAsync(Id);
+            _patient = await PatientService.GetByIdAsync(Id);
+            if (_patient is not null)
+            {
+                _appointments = (await AppointmentService.GetByPatientAsync(Id))
+                    .OrderByDescending(a => a.AppointmentDate)
+                    .ThenByDescending(a => a.StartTime)
+                    .ToList();
+
+                _visitRecords = (await VisitRecordService.GetByPatientAsync(Id))
+                    .OrderByDescending(v => v.VisitDate)
+                    .ToList();
+            }
         }
-        Logger.LogInformation("Patient detail loaded for {PatientId}", Id);
+        catch (Exception ex)
+        {
+            _error = $"Failed to load patient profile: {ex.Message}";
+            Logger.LogError(ex, "Failed to load patient detail for {PatientId}", Id);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static BadgeStyle GetStatusBadgeStyle(AppointmentStatus status) => status switch
+    {
+        AppointmentStatus.Completed => BadgeStyle.Success,
+        AppointmentStatus.Cancelled => BadgeStyle.Warning,
+        AppointmentStatus.NoShow => BadgeStyle.Danger,
+        AppointmentStatus.Scheduled => BadgeStyle.Info,
+        AppointmentStatus.Confirmed => BadgeStyle.Primary,
+        _ => BadgeStyle.Secondary
+    };
+
+    private static bool IsHighRisk(Appointment appointment)
+        => appointment.IsPredictedNoShow || (appointment.NoShowProbability ?? 0m) >= 0.70m;
+
+    private static string GetRiskLabel(Appointment appointment)
+    {
+        if (!appointment.NoShowProbability.HasValue && !appointment.IsPredictedNoShow)
+        {
+            return "Not Scored";
+        }
+
+        var probability = appointment.NoShowProbability ?? (appointment.IsPredictedNoShow ? 0.80m : 0.20m);
+        return probability < 0.40m ? "Low" : probability <= 0.70m ? "Medium" : "High";
+    }
+
+    private static BadgeStyle GetRiskBadgeStyle(Appointment appointment)
+    {
+        return GetRiskLabel(appointment) switch
+        {
+            "High" => BadgeStyle.Danger,
+            "Medium" => BadgeStyle.Warning,
+            "Low" => BadgeStyle.Success,
+            _ => BadgeStyle.Secondary
+        };
     }
 }

@@ -29,6 +29,72 @@ public class AppointmentService : IAppointmentService
             .ToListAsync();
     }
 
+    public async Task<IEnumerable<Appointment>> SearchAsync(
+        DateTime? fromDate = null,
+        DateTime? toDate = null,
+        Guid? patientId = null,
+        Guid? staffMemberId = null,
+        AppointmentStatus? status = null,
+        bool highRiskOnly = false)
+    {
+        var fromDateValue = fromDate?.Date;
+        var toDateValue = toDate?.Date;
+        if (fromDateValue.HasValue && toDateValue.HasValue && fromDateValue > toDateValue)
+        {
+            (fromDateValue, toDateValue) = (toDateValue, fromDateValue);
+        }
+
+        _logger.LogInformation(
+            "Searching appointments with filters: From={FromDate}, To={ToDate}, PatientId={PatientId}, StaffId={StaffId}, Status={Status}, HighRiskOnly={HighRiskOnly}",
+            fromDateValue,
+            toDateValue,
+            patientId,
+            staffMemberId,
+            status,
+            highRiskOnly);
+
+        var query = _db.Appointments
+            .AsNoTracking()
+            .Include(a => a.Patient)
+            .Include(a => a.StaffMember)
+            .AsQueryable();
+
+        if (fromDateValue.HasValue)
+        {
+            query = query.Where(a => a.AppointmentDate.Date >= fromDateValue.Value);
+        }
+
+        if (toDateValue.HasValue)
+        {
+            query = query.Where(a => a.AppointmentDate.Date <= toDateValue.Value);
+        }
+
+        if (patientId.HasValue)
+        {
+            query = query.Where(a => a.PatientId == patientId.Value);
+        }
+
+        if (staffMemberId.HasValue)
+        {
+            query = query.Where(a => a.StaffMemberId == staffMemberId.Value);
+        }
+
+        if (status.HasValue)
+        {
+            query = query.Where(a => a.Status == status.Value);
+        }
+
+        if (highRiskOnly)
+        {
+            query = query.Where(a => a.IsPredictedNoShow || (a.NoShowProbability ?? 0m) >= 0.70m);
+        }
+
+        return await query
+            .OrderBy(a => a.AppointmentDate)
+            .ThenBy(a => a.StartTime)
+            .ToListAsync();
+    }
+
     public async Task<IEnumerable<Appointment>> GetByDateAsync(DateTime date)
     {
         _logger.LogInformation("Fetching appointments for date {Date}", date.Date);
