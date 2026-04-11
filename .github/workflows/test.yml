@@ -11,6 +11,10 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+  checks: write
+
 jobs:
   test:
     name: Build & Test (.NET 10)
@@ -45,6 +49,9 @@ jobs:
         env:
           # Suppress heavy ML training output in CI (tests still execute correctly)
           DOTNET_ENVIRONMENT: Testing
+          JWT_KEY: test-jwt-signing-key-32-characters-minimum-length!
+          JWT_ISSUER: ClinicManagementSystem
+          JWT_AUDIENCE: ClinicManagementSystemAPI
 
       - name: Upload test results
         if: always()
@@ -55,10 +62,10 @@ jobs:
           retention-days: 14
 
       - name: Test summary
-        if: always()
+        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
         uses: dorny/test-reporter@v1
         with:
           name: xUnit Test Results
           path: "./test-results/*.trx"
           reporter: dotnet-trx
-          fail-on-error: true
+          fail-on-error: false
