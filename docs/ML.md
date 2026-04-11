@@ -1,104 +1,150 @@
-# ML.NET No-Show Prediction
+# No-Show Prediction (ML.NET)
 
-## Scope
+## Purpose
 
-The no-show subsystem uses ML.NET only (no Python and no external AI APIs). It supports local training, evaluation, model persistence, and appointment-level inference.
+This document describes the implemented no-show prediction workflow used in the capstone system. The objective is operational support for scheduling teams, not clinical diagnosis.
+
+## Implementation Scope
+
+The prediction subsystem is implemented entirely in .NET using ML.NET and local storage. It supports:
+
+- dataset generation
+- model training and evaluation
+- direct prediction from feature input
+- prediction from appointment context
+- optional persistence of prediction results
+- fallback scoring when model artifacts are unavailable
 
 ## Implemented Components
 
-- Service implementation: [ClinicManagementSystem.Services/Implementations/PredictionService.cs](../ClinicManagementSystem.Services/Implementations/PredictionService.cs)
-- DTO contracts: [ClinicManagementSystem.Models/DTOs](../ClinicManagementSystem.Models/DTOs)
-- API endpoints: [ClinicManagementSystem.API/Controllers/PredictionsController.cs](../ClinicManagementSystem.API/Controllers/PredictionsController.cs)
-- Metrics UI page: `/predictions/metrics`
+- Service: ClinicManagementSystem.Services/Implementations/PredictionService.cs
+- API controller: ClinicManagementSystem.API/Controllers/PredictionsController.cs
+- Stored prediction model entity: ClinicManagementSystem.Models/Entities/PredictionResult.cs
+- UI pages:
+  - PredictionLab.razor
+  - PredictionMetrics.razor
 
-## Feature List
+## Input Features
 
-The model uses the following features for binary no-show prediction:
+The model consumes the following core fields:
 
-- `PatientAge`
-- `DaysBetweenBookingAndAppointment`
-- `PreviousNoShows`
-- `PreviousCompletedVisits`
-- `AppointmentType`
-- `DayOfWeek`
-- `ReminderSent`
-- `HasInsurance`
+- PatientAge
+- DaysBetweenBookingAndAppointment
+- PreviousNoShows
+- PreviousCompletedVisits
+- AppointmentType
+- DayOfWeek
+- ReminderSent
+- HasInsurance
 
 Target label:
 
-- `Label` (`true` for no-show, `false` otherwise)
+- Label (true for no-show, false for attended)
 
-## Dataset Creation Strategy
+## Dataset Generation Strategy
 
-Dataset generation now prioritizes historical appointments when available:
+Dataset generation prioritizes historical appointment data and supplements with synthetic rows when needed.
 
-- Uses completed and no-show historical appointments from the database.
-- Builds per-patient temporal history so `PreviousNoShows` and `PreviousCompletedVisits` are based on earlier appointments only.
-- Computes booking lead-time using appointment `CreatedAt` and appointment date.
-- Uses patient insurance flag where available.
+Current behavior:
 
-If historical rows are insufficient for the requested dataset size, synthetic rows are generated to fill the gap.
+1. Pull historical appointment patterns from the local database.
+2. Derive temporal and patient history features.
+3. Fill shortfall with deterministic synthetic samples.
+4. Apply weighting logic to manage class imbalance.
 
-- Supported range: `500` to `2000` rows
-- Deterministic random seed for reproducible synthetic augmentation
-- Class imbalance handled via `ExampleWeight`
+Supported row range for generation endpoint:
 
-## Training Flow (Refactored)
+- 500 to 2000 rows
 
-Training logic is separated into explicit stages:
+## Model Training Pipeline
 
-1. Dataset creation/load
-2. Feature mapping pipeline (encoding + feature concatenation)
-3. Model training (FastTree binary classifier)
-4. Evaluation
-5. Persistence (model + latest metrics metadata)
+Training uses an ML.NET FastTree binary classifier with a repeatable preparation pipeline:
 
-## Evaluation Output
+1. Dataset load and split
+2. Feature engineering and encoding
+3. Model fit
+4. Evaluation metrics capture
+5. Artifact persistence to local storage
 
-Latest evaluation payload includes:
+## Inference Paths
+
+### Direct Inference
+
+- Endpoint: POST /api/Predictions/no-show
+- Input: NoShowPredictionInput
+- Output: NoShowPredictionOutput
+
+### Appointment-Based Inference
+
+- Endpoint: POST /api/Predictions/no-show/appointment/{appointmentId}
+- Supports persist query flag for saving PredictionResult
+
+### Fallback Behavior
+
+If model loading is unavailable, PredictionService uses deterministic fallback scoring logic so the workflow remains functional.
+
+## Output Shape
+
+Prediction responses include:
+
+- WillNoShow
+- Probability
+- Score
+- RiskLevel
+- Recommendation
+
+Risk levels are currently mapped from probability thresholds:
+
+- below 0.40: Low
+- 0.40 to 0.70: Medium
+- above 0.70: High
+
+## Model Metrics and Artifacts
+
+Training endpoint returns and stores evaluation metrics, including:
 
 - Accuracy
 - Precision
 - Recall
 - F1Score
-- AUC
-- Confusion matrix counts (true/false positives/negatives when available)
-- Train row count
-- Test row count
-- Model path
-- Dataset path
-- Training timestamp (UTC)
+- Auc
+- TrainRowCount
+- TestRowCount
+- DatasetPath
+- ModelPath
+- TrainingTimestampUtc
 
-## Persistence
+Local artifacts are written under ml-artifacts/no-show:
 
-Artifacts written to [ml-artifacts/no-show](../ml-artifacts/no-show):
+- no_show_training_data.csv
+- no_show_model.zip
+- no_show_model_metrics.json
 
-- `no_show_training_data.csv`
-- `no_show_model.zip`
-- `no_show_model_metrics.json`
+## API Endpoint Summary
 
-Additionally, latest model metrics are persisted in database audit logs (`AuditLogs`) under:
+| Endpoint                                             | Method | Purpose                              |
+| ---------------------------------------------------- | ------ | ------------------------------------ |
+| /api/Predictions/no-show                             | POST   | Predict from explicit feature input  |
+| /api/Predictions/no-show/appointment/{appointmentId} | POST   | Predict from appointment context     |
+| /api/Predictions/no-show/dataset                     | POST   | Generate dataset rows for training   |
+| /api/Predictions/no-show/train                       | POST   | Train and evaluate local model       |
+| /api/Predictions/no-show/metrics/latest              | GET    | Retrieve latest stored model metrics |
 
-- `EntityName = "PredictionResult"`
-- `ActionType = "NoShowModelMetricsStored"`
+## Validation and Testing Coverage
 
-## API Endpoints
+Current automated tests cover:
 
-- `POST /api/Predictions/no-show/dataset?rows=1200`
-- `POST /api/Predictions/no-show/train`
-- `GET /api/Predictions/no-show/metrics/latest`
-- `POST /api/Predictions/no-show/appointment/{appointmentId}?persist=true`
+- deterministic feature mapping
+- dataset generation format
+- training result validity
+- model load behavior
+- fallback predictions when model is absent
+- appointment-based prediction persistence behavior
 
-## Risk Buckets and Recommendation Behavior
+Refer to docs/TESTING.md for exact test classes and commands.
 
-- Probability `< 0.40`: Low
-- Probability `0.40 - 0.70`: Medium
-- Probability `> 0.70`: High
+## Limitations
 
-High-risk recommendations now return stronger operational guidance (direct call, explicit reconfirmation, same-day reminder, and waitlist backfill prep).
-
-## Evaluation Notes and Limitations
-
-- Synthetic/local training remains a limitation for production-grade calibration.
-- Historical training quality depends on appointment status integrity and reminder logging quality.
-- Model metrics from synthetic-augmented data should be treated as local validation signals, not clinical-grade performance claims.
+- This is a capstone-grade operational model, not a certified clinical decision-support model.
+- Training data includes synthetic and local development records.
+- Metrics should be interpreted as technical validation signals, not production clinical performance claims.

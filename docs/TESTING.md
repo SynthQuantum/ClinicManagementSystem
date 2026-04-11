@@ -1,282 +1,156 @@
-# Testing
+# Testing Strategy
 
-## Test Projects
+## Purpose
 
-| Project                                             | What it covers                                |
-| --------------------------------------------------- | --------------------------------------------- |
-| `tests/ClinicManagementSystem.Models.Tests`         | Computed property behavior, entity defaults   |
-| `tests/ClinicManagementSystem.Data.Tests`           | EF Core timestamps, soft-delete query filters |
-| `tests/ClinicManagementSystem.Services.Tests`       | All service-layer logic (see below)           |
-| `tests/ClinicManagementSystem.API.Tests`            | Controller action branching, middleware       |
-| `tests/ClinicManagementSystem.API.IntegrationTests` | HTTP end-to-end via `WebApplicationFactory`   |
-| `tests/ClinicManagementSystem.Blazor.Tests`         | Component rendering                           |
+This document defines the automated and manual testing approach for the Clinic Management System capstone and records the current baseline test status.
 
----
+## Test Project Inventory
 
-## Coverage Scope
+| Test Project                                      | Focus Area                                          |
+| ------------------------------------------------- | --------------------------------------------------- |
+| tests/ClinicManagementSystem.Models.Tests         | Entity behavior and computed properties             |
+| tests/ClinicManagementSystem.Data.Tests           | DbContext timestamps and soft-delete query filters  |
+| tests/ClinicManagementSystem.Services.Tests       | Core business services and ML service behavior      |
+| tests/ClinicManagementSystem.API.Tests            | Controller-level unit tests and middleware behavior |
+| tests/ClinicManagementSystem.API.IntegrationTests | End-to-end API behavior via WebApplicationFactory   |
+| tests/ClinicManagementSystem.Blazor.Tests         | Blazor component rendering checks                   |
 
-### Service Unit Tests (`ClinicManagementSystem.Services.Tests`)
+## Coverage Summary
 
-**Patient service** (`PatientServiceTests.cs`)
+### Service Layer Coverage
 
-- Create and retrieve patients
-- Soft-delete hides record from queries
+Implemented service tests currently validate:
 
-**Staff service** (`StaffServiceTests.cs`)
+- patient lifecycle operations
+- staff lifecycle operations
+- appointment creation and conflict logic
+- appointment conflict edge cases
+- dashboard aggregation and trend/workload calculations
+- notification reminder creation, deduplication, and processing outcomes
+- performance monitoring summary and persistence behavior
+- prediction service feature mapping, dataset generation, training, load, fallback, and persistence paths
 
-- Create, update, soft-delete
+### API Unit Coverage
 
-**Appointment service** (`AppointmentServiceTests.cs`)
+Implemented controller and middleware tests currently validate:
 
-- Create and persist appointment
-- Start-time-after-end-time validation
-- Scheduling conflict for same staff
+- patients, staff, appointments, dashboard, and predictions controller branching
+- success, bad-request, conflict, and not-found paths
+- role-sensitive flow assumptions at controller invocation level
+- performance middleware sampling behavior
 
-**Appointment conflict edge cases** (`AppointmentServiceConflictTests.cs`)
+### API Integration Coverage
 
-- Adjacent slots do **not** conflict
-- Cancelled appointments do NOT block slots
-- Same patient / different staff → patient conflict
-- Cancelled new appointment skips conflict check
-- `UpdateAsync` triggers conflict detection
-- `UpdateStatusAsync` returns true / false
-- `DeleteAsync` returns false when not found
-- `GetByPatientAsync` / `GetByStaffAsync` / `GetByDateAsync` filter correctly
+Current integration suite validates authenticated and unauthenticated endpoint behavior for:
 
-**Dashboard aggregation** (`DashboardAggregationTests.cs`)
+- patients
+- staff members
+- appointments
+- dashboard
+- predictions
 
-- `GetAppointmentTrendAsync` returns `days+1` data points
-- Zero-fills days with no appointments
-- Counts appointments on the correct day
-- Excludes appointments outside the lookback window
-- `GetStaffWorkloadAsync` returns one row per staff member
-- Counts total, completed, and no-show appointments per staff
-- Orders by total appointments descending
-- Includes staff name in output
+Integration setup uses WebApplicationFactory with in-memory database configuration and seeded auth data.
 
-**No-show prediction fallback** (`PredictionFallbackTests.cs`)
+## Role-Driven Test Intent Matrix
 
-- Rule-based fallback returns valid risk level when no model is trained
-- High-risk input profile → Medium or High risk level
-- Low-risk input profile → lower probability
-- `PredictNoShowForAppointmentAsync` throws `ArgumentException` for missing appointment
-- Persists `PredictionResult` entity when `persist=true`
-- Does NOT persist when `persist=false`
+| Role         | Primary flows verified in automated tests                         |
+| ------------ | ----------------------------------------------------------------- |
+| Admin        | Full CRUD modules, dashboard visibility, administrative endpoints |
+| Doctor       | Clinical dashboard and appointment-facing flows                   |
+| Receptionist | Front-desk patient/appointment/prediction operational flows       |
 
-**Notification service** (`NotificationServiceTests.cs`)
+## Key Scenario Buckets
 
-- Creates reminders and prevents duplicates
-- Marks notifications failed with failure reason
-- Processes and sends due notifications
+| Scenario Type                       | Coverage Status              |
+| ----------------------------------- | ---------------------------- |
+| Valid request flow                  | Covered                      |
+| Invalid input and validation path   | Covered in unit tests        |
+| Not-found path                      | Covered                      |
+| Conflict path (appointments)        | Covered                      |
+| Authentication-required path        | Covered in integration tests |
+| Aggregation correctness (dashboard) | Covered                      |
+| ML fallback behavior                | Covered                      |
 
-**Performance monitoring** (`PerformanceMonitoringServiceTests.cs`)
+## Reusable Test Builders
 
-- Summary calculations: average, p95, error rate
-- Flush persists samples to database
+Shared fixture builders are available in tests/ClinicManagementSystem.Services.Tests/Builders:
 
-**ML service** (`PredictionServiceMlTests.cs`)
+- PatientBuilder
+- StaffMemberBuilder
+- AppointmentBuilder
 
-- Feature vector mapping is deterministic
-- Dataset generation writes CSV with correct header
-- Training returns metrics in valid range and saves model
-- Model loads successfully after training
-- `PredictNoShowAsync` returns valid output shape
+These builders are used to keep service tests readable and reduce duplication for common entity setup.
 
----
+## How to Run Tests
 
-### API Unit Tests (`ClinicManagementSystem.API.Tests`)
+From repository root:
 
-**PatientsController** (`PatientsControllerTests.cs`)
+Run all tests:
 
-- `GET` with no query → calls `GetAllAsync`
-- `GET` with query → calls `SearchAsync`
-- `GET /{id}` → 200 (found) or 404 (not found)
-- `POST` → 201 Created with `Location` header
-- `PUT /{id}` → 200 (found) or 404 (not found)
-- `DELETE /{id}` → 204 (found) or 404 (not found)
+    dotnet test ClinicManagementSystem.slnx
 
-**StaffMembersController** (`StaffMembersControllerTests.cs`)
+Run with minimal console output:
 
-- `GET` → 200 with all staff (including empty collection)
-- `GET /{id}` → 200 or 404
-- `POST` → 201 Created
-- `PUT /{id}` → 200 or 404
-- `DELETE /{id}` → 204 or 404
+    dotnet test ClinicManagementSystem.slnx --no-build --logger "console;verbosity=minimal"
 
-**AppointmentsController** (`AppointmentsControllerTests.cs`)
+Run only services tests:
 
-- `GET` → all, by patient, by staff, by date (all filter paths)
-- `GET /{id}` → 200 or 404
-- `POST` → 201 Created / 400 Bad Request / 409 Conflict
-- `PUT /{id}` → 404 / 409 Conflict
-- `DELETE /{id}` → 204 or 404
+    dotnet test tests/ClinicManagementSystem.Services.Tests
 
-**DashboardController** (`DashboardControllerTests.cs`)
+Run only API integration tests:
 
-- `GET /summary` → 200 with correct `NoShowRate`
-- `GET /trend` → 200 with trend points; days parameter forwarded
-- `GET /staff-workload` → 200 with workload list (including empty)
+    dotnet test tests/ClinicManagementSystem.API.IntegrationTests
 
-**PredictionsController** (`PredictionsControllerTests.cs`)
+Run a specific class filter example:
 
-- `POST /no-show` → 200 with prediction output
-- `POST /no-show/appointment/{id}` → 200 (found) or 400 (not found)
-- `GET /no-show/metrics/latest` → 200 (exists) or 404 (none stored)
+    dotnet test tests/ClinicManagementSystem.Services.Tests --filter "FullyQualifiedName~AppointmentServiceConflictTests"
 
-**Middleware** (`PerformanceMonitoringMiddlewareTests.cs`)
+Collect coverage output (if collector is available):
 
-- Request sample captured with correct method, path, status code
+    dotnet test ClinicManagementSystem.slnx --collect:"XPlat Code Coverage"
 
-**General controller branching** (`ControllersUnitTests.cs`)
+## Continuous Integration
 
-- `PatientsController.GetAll` search branching
-- `AppointmentsController.Create` conflict → 409
-- `DashboardController.GetSummary` → 200
+GitHub Actions workflow:
 
----
+- .github/workflows/test.yml
 
-### API Integration Tests (`ClinicManagementSystem.API.IntegrationTests`)
+Current CI behavior:
 
-Uses `WebApplicationFactory<Program>` with an in-memory database seeded before each class run.
-All requests authenticate as an Admin user seeded during factory setup.
+1. restore dependencies
+2. build solution
+3. run full test suite
+4. publish TRX artifacts
+5. publish summarized results
 
-| Endpoint                            | Scenario                                 |
-| ----------------------------------- | ---------------------------------------- |
-| `GET /api/Patients`                 | Returns seeded patients                  |
-| `POST /api/Patients`                | Creates patient, returns 201 + Location  |
-| `GET /api/Patients/{id}`            | Returns 404 for unknown GUID             |
-| `GET /api/Patients` (no auth)       | Returns 401 Unauthorized                 |
-| `GET /api/StaffMembers`             | Returns 200 with staff list              |
-| `POST /api/StaffMembers`            | Creates staff member, returns 201        |
-| `GET /api/Appointments`             | Returns seeded appointments              |
-| `GET /api/Appointments/{id}`        | Returns 404 for unknown GUID             |
-| `GET /api/Dashboard/summary`        | Returns summary with counts > 0          |
-| `GET /api/Dashboard/trend`          | Returns 8 points for `days=7`            |
-| `GET /api/Dashboard/staff-workload` | Returns workload list                    |
-| `POST /api/Predictions/no-show`     | Returns valid risk level and probability |
-
----
-
-## Test Builders
-
-Reusable fluent builders for constructing test fixtures are in
-`tests/ClinicManagementSystem.Services.Tests/Builders/`:
-
-```csharp
-var patient = PatientBuilder.Default()
-    .WithName("Alice", "Smith")
-    .WithDateOfBirth(new DateTime(1990, 6, 15))
-    .WithEmail("alice@test.local")
-    .Build();
-
-var staff = StaffMemberBuilder.Default()
-    .WithRole(UserRole.Doctor)
-    .WithSpecialty("Cardiology")
-    .Build();
-
-var appointment = AppointmentBuilder
-    .For(patient.Id, staff.Id)
-    .OnDate(DateTime.UtcNow.Date.AddDays(1))
-    .WithSlot(new TimeSpan(9, 0, 0), new TimeSpan(9, 30, 0))
-    .WithStatus(AppointmentStatus.Scheduled)
-    .Build();
-```
-
----
-
-## Run Tests Locally
-
-```bash
-# All tests
-dotnet test .\ClinicManagementSystem.slnx
-
-# A single project
-dotnet test .\tests\ClinicManagementSystem.Services.Tests\
-
-# A specific test class
-dotnet test .\tests\ClinicManagementSystem.Services.Tests\ --filter "FullyQualifiedName~AppointmentServiceConflictTests"
-
-# With detailed output
-dotnet test .\ClinicManagementSystem.slnx --logger "console;verbosity=detailed"
-
-# With code coverage (requires coverlet)
-dotnet test .\ClinicManagementSystem.slnx --collect:"XPlat Code Coverage"
-```
-
----
-
-## CI
-
-Tests run automatically on every push and pull request via
-`.github/workflows/test.yml`. The workflow:
-
-1. Restores NuGet packages
-2. Builds in Debug configuration
-3. Runs the full test suite
-4. Uploads `.trx` result files as a build artifact
-5. Publishes a test summary via `dorny/test-reporter`
-
----
-
-## Latest Result
+## Latest Validated Baseline
 
 | Metric      | Value |
 | ----------- | ----- |
 | Total tests | 107   |
+| Passed      | 107   |
 | Failed      | 0     |
 | Skipped     | 0     |
 
-```bash
-# Command used for final validation
-dotnet test .\ClinicManagementSystem.slnx --no-build --logger "console;verbosity=minimal"
-```
+Validation command used:
 
-## Manual Verification Performed
+    dotnet test ClinicManagementSystem.slnx --no-build --logger "console;verbosity=minimal"
 
-- Build verification on all projects
-- API endpoint checks for core modules
-- UI flow checks for:
-  - patient CRUD
-  - staff CRUD
-  - appointment create/update/delete
-  - scheduling conflict warnings
-  - dashboard cards and trend/workload
-  - prediction risk display and ML metrics page
+## Manual Verification Scope
 
-## Authentication Manual Checklist
+Manual checks performed for capstone demonstration readiness include:
 
-- Log in to Blazor with development admin account.
-- Verify successful redirect to dashboard.
-- Verify Logout clears auth session and redirects to login.
-- Attempt to access `/staff` as non-admin and confirm unauthorized behavior.
-- Attempt to call protected API endpoint without JWT and confirm `401 Unauthorized`.
-- Call `/api/auth/login` and retry protected API with bearer token.
-- Verify role restrictions:
-  - Patients: Admin, Doctor, Receptionist
-  - StaffMembers: Admin only
-  - Appointments: Admin, Doctor, Receptionist
-  - Dashboard: Admin, Doctor
-  - Predictions: Admin, Doctor, Receptionist
-- Verify auth events exist in `AuditLogs` (login success/fail/logout).
+- login/logout and unauthorized routing behavior
+- patient CRUD UI flow
+- staff CRUD UI flow
+- appointment scheduling and conflict feedback
+- dashboard summary and trend rendering
+- prediction lab output rendering and metrics page visibility
+- notifications page behavior
 
-## Recommended Next Additions
+## Current Gaps and Next Testing Enhancements
 
-- API negative-path integration tests (validation and conflict responses)
-- Focused coverage reporting in CI per project
-- Component tests for form validation and submission flows in Blazor pages
-
-## Reminder Workflow Manual Scenarios
-
-- Create an appointment more than 24 hours in advance and run manual reminder processing.
-- Verify reminder notifications are created for available patient channels (email/phone).
-- Run processing again and verify duplicate reminders are not created.
-- Set a due notification and verify status transitions from `Pending` to `Sent`.
-- Use an invalid recipient and verify status becomes `Failed` with populated `FailureReason`.
-- Verify `/notifications` monitoring page reflects pending/sent/failed counts and recent history.
-
-## Evidence Placeholder (to fill per sprint)
-
-- Build status: pass/fail
-- API latency sample for top 5 endpoints
-- Regression checklist coverage percent
-- Defect count by module
+- add more integration tests for invalid payload model-state paths
+- add richer component tests for form validation and role-specific UI behavior
+- add CI-level coverage thresholds by project area
+- add non-functional test scripts for load and resilience profiling
