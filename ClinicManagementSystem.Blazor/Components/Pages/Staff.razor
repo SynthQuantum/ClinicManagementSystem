@@ -2,9 +2,13 @@
 @attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 @inject IStaffService StaffService
+@inject IAppointmentService AppointmentService
+@inject IDashboardService DashboardService
 @inject NavigationManager Nav
 @inject ILogger<Staff> Logger
 @using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Models.Enums
 @using ClinicManagementSystem.Services.Interfaces
 
 <PageTitle>Staff</PageTitle>
@@ -26,17 +30,17 @@
     }
 
     <RadzenDataGrid Data="@_staff" TItem="StaffMember" AllowSorting="true" AllowPaging="true" PageSize="15"
-                    IsLoading="@_loading">
+                    IsLoading="@_loading" EmptyText="No staff members found.">
         <Columns>
             <RadzenDataGridColumn TItem="StaffMember" Property="FullName" Title="Name" />
-            <RadzenDataGridColumn TItem="StaffMember" Property="Role" Title="Role" />
+            <RadzenDataGridColumn TItem="StaffMember" Property="Role" Title="Role" Width="120px" />
             <RadzenDataGridColumn TItem="StaffMember" Property="Specialty" Title="Specialty" />
             <RadzenDataGridColumn TItem="StaffMember" Property="Email" Title="Email" />
             <RadzenDataGridColumn TItem="StaffMember" Property="PhoneNumber" Title="Phone" />
-            <RadzenDataGridColumn TItem="StaffMember" Property="IsAvailable" Title="Available" Width="100px">
+            <RadzenDataGridColumn TItem="StaffMember" Property="IsAvailable" Title="Available" Width="120px">
                 <Template Context="s">
-                    <RadzenIcon Icon="@(s.IsAvailable ? "check_circle" : "cancel")"
-                                Style="@(s.IsAvailable ? "color:green" : "color:red")" />
+                    <RadzenBadge BadgeStyle="@(s.IsAvailable? BadgeStyle.Success: BadgeStyle.Warning)"
+                                 Text="@(s.IsAvailable ? "Available" : "Unavailable")" />
                 </Template>
             </RadzenDataGridColumn>
             <RadzenDataGridColumn TItem="StaffMember" Title="Actions" Width="120px" Sortable="false">
@@ -48,16 +52,54 @@
                 </Template>
             </RadzenDataGridColumn>
         </Columns>
-        <EmptyTemplate>
-            <RadzenText TextStyle="TextStyle.Body2">No staff members found.</RadzenText>
-        </EmptyTemplate>
     </RadzenDataGrid>
+
+    <RadzenCard>
+        <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                     AlignItems="AlignItems.Center">
+            <RadzenText TextStyle="TextStyle.H6">Daily Operations Workload</RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.Body2">Workday:</RadzenText>
+                <RadzenDatePicker @bind-Value="_workloadDate" DateFormat="yyyy-MM-dd"
+                                  Change="@(_ => LoadWorkloadAsync())" />
+            </RadzenStack>
+        </RadzenStack>
+
+        <RadzenDataGrid Data="@_dailyWorkload" TItem="StaffDailyWorkload" AllowSorting="true" AllowPaging="true"
+                        PageSize="10" EmptyText="No workload records for selected date.">
+            <Columns>
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="StaffName" Title="Staff" />
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="Role" Title="Role" Width="120px" />
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="TodayAppointments" Title="Appointments"
+                                      Width="120px" />
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="CompletedToday" Title="Completed"
+                                      Width="110px" />
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="NoShowsToday" Title="No-Shows"
+                                      Width="110px" />
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="HighRiskToday" Title="High-Risk"
+                                      Width="110px">
+                    <Template Context="row">
+                        <RadzenBadge BadgeStyle="@(row.HighRiskToday > 0 ? BadgeStyle.Danger : BadgeStyle.Success)"
+                                     Text="@row.HighRiskToday.ToString()" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="StaffDailyWorkload" Property="UtilizationLabel" Title="Load" Width="120px">
+                    <Template Context="row">
+                        <RadzenBadge BadgeStyle="@GetUtilizationBadge(row.UtilizationLabel)"
+                                     Text="@row.UtilizationLabel" />
+                    </Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
 </RadzenStack>
 
 @code {
-    private IEnumerable<StaffMember> _staff = [];
+    private List<StaffMember> _staff = [];
+    private List<StaffDailyWorkload> _dailyWorkload = [];
     private bool _loading = true;
     private string? _error;
+    private DateTime _workloadDate = DateTime.Today;
 
     protected override async Task OnInitializedAsync()
     {
@@ -71,13 +113,15 @@
         _error = null;
         try
         {
-            _staff = await StaffService.GetAllAsync();
-            Logger.LogInformation("Loaded {Count} staff members", _staff.Count());
+            _staff = (await StaffService.GetAllAsync()).OrderBy(s => s.LastName).ThenBy(s => s.FirstName).ToList();
+            await LoadWorkloadAsync();
+            Logger.LogInformation("Loaded {Count} staff members", _staff.Count);
         }
         catch (Exception ex)
         {
             _error = ex.Message;
             _staff = [];
+            _dailyWorkload = [];
             Logger.LogError(ex, "Failed to load staff members");
         }
         finally
@@ -86,10 +130,60 @@
         }
     }
 
+    private async Task LoadWorkloadAsync()
+    {
+        var dailyAppointments = (await AppointmentService.SearchAsync(_workloadDate, _workloadDate)).ToList();
+
+        _dailyWorkload = _staff
+            .Select(staff =>
+            {
+                var items = dailyAppointments.Where(a => a.StaffMemberId == staff.Id).ToList();
+                var total = items.Count;
+                var highRisk = items.Count(IsHighRisk);
+
+                return new StaffDailyWorkload
+                {
+                    StaffId = staff.Id,
+                    StaffName = staff.FullName,
+                    Role = staff.Role.ToString(),
+                    TodayAppointments = total,
+                    CompletedToday = items.Count(a => a.Status == AppointmentStatus.Completed),
+                    NoShowsToday = items.Count(a => a.Status == AppointmentStatus.NoShow),
+                    HighRiskToday = highRisk,
+                    UtilizationLabel = total >= 8 ? "Heavy" : total >= 4 ? "Moderate" : "Light"
+                };
+            })
+            .OrderByDescending(row => row.TodayAppointments)
+            .ThenBy(row => row.StaffName)
+            .ToList();
+    }
+
     private async Task DeleteStaff(Guid id)
     {
         Logger.LogInformation("Deleting staff member {Id}", id);
         await StaffService.DeleteAsync(id);
         await LoadStaff();
+    }
+
+    private static bool IsHighRisk(Appointment appointment)
+        => appointment.IsPredictedNoShow || (appointment.NoShowProbability ?? 0m) >= 0.70m;
+
+    private static BadgeStyle GetUtilizationBadge(string utilizationLabel) => utilizationLabel switch
+    {
+        "Heavy" => BadgeStyle.Warning,
+        "Moderate" => BadgeStyle.Info,
+        _ => BadgeStyle.Success
+    };
+
+    private sealed class StaffDailyWorkload
+    {
+        public Guid StaffId { get; set; }
+        public string StaffName { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public int TodayAppointments { get; set; }
+        public int CompletedToday { get; set; }
+        public int NoShowsToday { get; set; }
+        public int HighRiskToday { get; set; }
+        public string UtilizationLabel { get; set; } = string.Empty;
     }
 }

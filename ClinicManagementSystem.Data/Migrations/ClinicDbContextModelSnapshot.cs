@@ -406,6 +406,48 @@ namespace ClinicManagementSystem.Data.Migrations
                     b.ToTable("Patients");
                 });
 
+            modelBuilder.Entity("ClinicManagementSystem.Models.Entities.PerformanceSample", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("ElapsedMilliseconds")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("float(10)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("nvarchar(16)");
+
+                    b.Property<string>("Path")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<DateTime>("RequestTimestampUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("StatusCode")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestTimestampUtc", "Path");
+
+                    b.ToTable("PerformanceSamples");
+                });
+
             modelBuilder.Entity("ClinicManagementSystem.Models.Entities.PredictionResult", b =>
                 {
                     b.Property<Guid>("Id")

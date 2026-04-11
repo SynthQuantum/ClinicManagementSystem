@@ -1,9 +1,15 @@
-﻿@page "/"
+@page "/"
 @attribute [Authorize(Roles = "Admin,Doctor")]
 @rendermode InteractiveServer
 @inject IDashboardService DashboardService
+@inject IPerformanceMonitoringService PerformanceMonitoringService
+@inject IAppointmentService AppointmentService
+@inject INotificationService NotificationService
+@inject NavigationManager Nav
 @inject ILogger<Home> Logger
 @using ClinicManagementSystem.Models.DTOs
+@using ClinicManagementSystem.Models.Entities
+@using ClinicManagementSystem.Models.Enums
 @using ClinicManagementSystem.Services.Interfaces
 
 <PageTitle>Dashboard — Clinic Management System</PageTitle>
@@ -31,7 +37,6 @@
     }
     else
     {
-        <!-- KPI Cards -->
         <RadzenRow Gap="1rem">
             <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
                 <RadzenCard>
@@ -69,15 +74,86 @@
                     <RadzenText TextStyle="TextStyle.H5">@_summary.NoShowRate%</RadzenText>
                 </RadzenCard>
             </RadzenColumn>
-            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4" SizeLG="2">
+        </RadzenRow>
+
+        <RadzenRow Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeLG="8">
                 <RadzenCard>
-                    <RadzenText TextStyle="TextStyle.Overline">No-Show Count</RadzenText>
-                    <RadzenText TextStyle="TextStyle.H5">@_summary.NoShowAppointments</RadzenText>
+                    <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                                 AlignItems="AlignItems.Center">
+                        <RadzenText TextStyle="TextStyle.H6">Today's Appointments</RadzenText>
+                        <RadzenButton Text="Open Schedule" Icon="calendar_month" ButtonStyle="ButtonStyle.Light"
+                                      Click="@(() => Nav.NavigateTo("/appointments"))" />
+                    </RadzenStack>
+                    <RadzenDataGrid Data="@_todayAppointments" TItem="Appointment" AllowPaging="true" PageSize="8"
+                                    EmptyText="No appointments scheduled for today.">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Start" Width="90px" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="EndTime" Title="End" Width="90px" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="Patient.FullName" Title="Patient" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Staff" />
+                            <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status" Width="110px">
+                                <Template Context="appt">
+                                    <RadzenBadge BadgeStyle="@GetStatusBadge(appt.Status)" Text="@appt.Status.ToString()" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeLG="4">
+                <RadzenCard>
+                    <RadzenText TextStyle="TextStyle.H6">Reminder Summary</RadzenText>
+                    @if (_notificationSummary is null)
+                    {
+                        <RadzenText TextStyle="TextStyle.Body2">No notification summary available.</RadzenText>
+                    }
+                    else
+                    {
+                        <RadzenStack Gap="0.5rem">
+                            <RadzenText TextStyle="TextStyle.Body2">Pending: <strong>@_notificationSummary.PendingCount</strong>
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">Sent: <strong>@_notificationSummary.SentCount</strong>
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">Failed: <strong>@_notificationSummary.FailedCount</strong>
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2">Cancelled:
+                                <strong>@_notificationSummary.CancelledCount</strong>
+                            </RadzenText>
+                        </RadzenStack>
+                    }
+                    <RadzenButton Text="Open Notifications" Icon="notifications" ButtonStyle="ButtonStyle.Light"
+                                  Click="@(() => Nav.NavigateTo("/notifications"))" Style="margin-top:0.75rem" />
                 </RadzenCard>
             </RadzenColumn>
         </RadzenRow>
 
-        <!-- Appointment Trend Chart -->
+        <RadzenCard>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                         AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.H6">High-Risk Appointments (Next 7 Days)</RadzenText>
+                <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@_highRiskAppointments.Count.ToString()" />
+            </RadzenStack>
+            <RadzenDataGrid Data="@_highRiskAppointments" TItem="Appointment" AllowPaging="true" PageSize="8"
+                            EmptyText="No high-risk appointments in the upcoming week.">
+                <Columns>
+                    <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
+                                          FormatString="{0:yyyy-MM-dd}" Width="120px" />
+                    <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Time" Width="90px" />
+                    <RadzenDataGridColumn TItem="Appointment" Property="Patient.FullName" Title="Patient" />
+                    <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Staff" />
+                    <RadzenDataGridColumn TItem="Appointment" Title="Risk" Width="200px">
+                        <Template Context="appt">
+                            <RadzenStack Gap="0.25rem">
+                                <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="@GetRiskLabel(appt)" />
+                                <RadzenText TextStyle="TextStyle.Caption">@GetProbabilityLabel(appt)</RadzenText>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenCard>
+
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.H6">Appointment Trend (Last 30 Days)</RadzenText>
             @if (_trend.Any())
@@ -93,13 +169,10 @@
             }
             else
             {
-                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
-                    No appointment trend data available yet.
-                </RadzenAlert>
+                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">No appointment trend data available yet.</RadzenAlert>
             }
         </RadzenCard>
 
-        <!-- Staff Workload Table -->
         <RadzenCard>
             <RadzenText TextStyle="TextStyle.H6">Staff Workload</RadzenText>
             @if (_workload.Any())
@@ -115,26 +188,64 @@
             }
             else
             {
-                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
-                    No staff workload data available yet.
-                </RadzenAlert>
+                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">No staff workload data available yet.</RadzenAlert>
             }
         </RadzenCard>
 
         <RadzenCard>
-            <RadzenText TextStyle="TextStyle.H6">Prediction Insights (ML.NET integration coming next phase)</RadzenText>
-            <RadzenText TextStyle="TextStyle.Body2">
-                This section will show patient no-show risk and schedule optimization suggestions once the ML.NET model is
-                integrated.
-            </RadzenText>
-        </RadzenCard>
-    }
-</RadzenStack>
+            <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.SpaceBetween"
+                         AlignItems="AlignItems.Center">
+                <RadzenText TextStyle="TextStyle.H6">API Performance Snapshot</RadzenText>
+                @if (_performanceSummary is not null)
+                {
+                    <RadzenText TextStyle="TextStyle.Caption">Generated
+                        @_performanceSummary.GeneratedAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</RadzenText>
+                    }
+                </RadzenStack>
+
+                @if (_performanceSummary is null || !_performanceSummary.MonitoringEnabled)
+                {
+                    <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+                        Performance monitoring is disabled or no samples have been collected yet.
+                    </RadzenAlert>
+                }
+                else
+                {
+                    <RadzenRow Gap="1rem">
+                        <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Average Response Time</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5">@_performanceSummary.AverageLatencyMs.ToString("F2") ms
+                                </RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">p95 Response Time</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5">@_performanceSummary.P95LatencyMs.ToString("F2") ms
+                                </RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                        <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="4">
+                            <RadzenCard>
+                                <RadzenText TextStyle="TextStyle.Overline">Error Rate</RadzenText>
+                                <RadzenText TextStyle="TextStyle.H5">@_performanceSummary.ErrorRate.ToString("F2")%</RadzenText>
+                            </RadzenCard>
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+            </RadzenCard>
+        }
+    </RadzenStack>
 
 @code {
     private DashboardSummary? _summary;
-    private IEnumerable<AppointmentTrendPoint> _trend = [];
-    private IEnumerable<StaffWorkloadSummary> _workload = [];
+    private List<AppointmentTrendPoint> _trend = [];
+    private List<StaffWorkloadSummary> _workload = [];
+    private PerformanceSummary? _performanceSummary;
+    private NotificationDashboardSummary? _notificationSummary;
+    private List<Appointment> _todayAppointments = [];
+    private List<Appointment> _highRiskAppointments = [];
     private bool _loading = true;
     private string? _error;
 
@@ -151,8 +262,21 @@
         try
         {
             _summary = await DashboardService.GetSummaryAsync();
-            _trend = await DashboardService.GetAppointmentTrendAsync(30);
-            _workload = await DashboardService.GetStaffWorkloadAsync();
+            _trend = (await DashboardService.GetAppointmentTrendAsync(30)).ToList();
+            _workload = (await DashboardService.GetStaffWorkloadAsync()).ToList();
+            _performanceSummary = await PerformanceMonitoringService.GetSummaryAsync();
+            _notificationSummary = await NotificationService.GetSummaryAsync(25);
+
+            var today = DateTime.Today;
+            _todayAppointments = (await AppointmentService.SearchAsync(today, today))
+                .OrderBy(a => a.StartTime)
+                .ToList();
+
+            _highRiskAppointments = (await AppointmentService.SearchAsync(today, today.AddDays(7), highRiskOnly: true))
+                .OrderBy(a => a.AppointmentDate)
+                .ThenBy(a => a.StartTime)
+                .ToList();
+
             Logger.LogInformation("Dashboard loaded successfully");
         }
         catch (Exception ex)
@@ -164,5 +288,33 @@
         {
             _loading = false;
         }
+    }
+
+    private static BadgeStyle GetStatusBadge(AppointmentStatus status) => status switch
+    {
+        AppointmentStatus.Completed => BadgeStyle.Success,
+        AppointmentStatus.Cancelled => BadgeStyle.Warning,
+        AppointmentStatus.NoShow => BadgeStyle.Danger,
+        AppointmentStatus.Scheduled => BadgeStyle.Info,
+        AppointmentStatus.Confirmed => BadgeStyle.Primary,
+        _ => BadgeStyle.Secondary
+    };
+
+    private static string GetRiskLabel(Appointment appointment)
+    {
+        var probability = appointment.NoShowProbability ?? (appointment.IsPredictedNoShow ? 0.80m : 0.20m);
+        if (probability < 0.40m)
+        {
+            return "Low";
+        }
+
+        return probability <= 0.70m ? "Medium" : "High";
+    }
+
+    private static string GetProbabilityLabel(Appointment appointment)
+    {
+        return appointment.NoShowProbability.HasValue
+            ? $"Probability: {Math.Round(appointment.NoShowProbability.Value * 100, 1)}%"
+            : "Probability not available";
     }
 }

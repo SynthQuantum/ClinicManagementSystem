@@ -1,6 +1,7 @@
 using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.Enums;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -10,6 +11,15 @@ namespace ClinicManagementSystem.API.IntegrationTests;
 
 public class ApiWebApplicationFactory : WebApplicationFactory<Program>
 {
+    public ApiWebApplicationFactory()
+    {
+        Environment.SetEnvironmentVariable("DOTNET_ENVIRONMENT", "Testing");
+        Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        Environment.SetEnvironmentVariable("JWT_KEY", "test-jwt-signing-key-32-characters-minimum-length!");
+        Environment.SetEnvironmentVariable("JWT_ISSUER", "ClinicManagementSystem");
+        Environment.SetEnvironmentVariable("JWT_AUDIENCE", "ClinicManagementSystemAPI");
+    }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -19,6 +29,7 @@ public class ApiWebApplicationFactory : WebApplicationFactory<Program>
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Jwt:Key"] = "test-jwt-signing-key-32-characters-minimum-length!",
+                ["StartupBehavior:SeedIdentityData"] = "true",
                 ["IdentitySeed:SeedAdmin"] = "true",
                 ["IdentitySeed:AdminEmail"] = "admin.test@clinic.local",
                 ["IdentitySeed:AdminPassword"] = "AdminTest@12345!"
@@ -33,6 +44,45 @@ public class ApiWebApplicationFactory : WebApplicationFactory<Program>
             db.Database.EnsureCreated();
 
             Seed(db);
+
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+
+            if (!roleManager.RoleExistsAsync("Admin").GetAwaiter().GetResult())
+            {
+                roleManager.CreateAsync(new IdentityRole<Guid>("Admin")).GetAwaiter().GetResult();
+            }
+
+            const string adminEmail = "admin.test@clinic.local";
+            const string adminPassword = "AdminTest@12345!";
+
+            var adminUser = userManager.FindByEmailAsync(adminEmail).GetAwaiter().GetResult();
+            if (adminUser is null)
+            {
+                adminUser = new AppUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    FirstName = "Integration",
+                    LastName = "Admin",
+                    Role = UserRole.Admin,
+                    IsActive = true,
+                    EmailConfirmed = true
+                };
+
+                var createResult = userManager.CreateAsync(adminUser, adminPassword).GetAwaiter().GetResult();
+                if (!createResult.Succeeded)
+                {
+                    var reasons = string.Join(", ", createResult.Errors.Select(error => error.Description));
+                    throw new InvalidOperationException($"Failed to seed integration admin user: {reasons}");
+                }
+            }
+
+            var roles = userManager.GetRolesAsync(adminUser).GetAwaiter().GetResult();
+            if (!roles.Contains("Admin"))
+            {
+                userManager.AddToRoleAsync(adminUser, "Admin").GetAwaiter().GetResult();
+            }
         });
     }
 

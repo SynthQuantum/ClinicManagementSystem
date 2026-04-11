@@ -1,0 +1,71 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  test:
+    name: Build & Test (.NET 10)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore dependencies
+        run: dotnet restore ClinicManagementSystem.slnx
+
+      - name: Build (no warnings as errors in CI)
+        run: dotnet build ClinicManagementSystem.slnx --configuration Debug --no-restore
+
+      # Unit & integration tests
+      # The API integration tests require a database; they use EF InMemory via the
+      # WebApplicationFactory configuration and do NOT need a live SQL Server.
+      - name: Run tests
+        run: >
+          dotnet test ClinicManagementSystem.slnx
+          --no-build
+          --configuration Debug
+          --logger "console;verbosity=normal"
+          --logger "trx;LogFileName=test-results.trx"
+          --results-directory ./test-results
+        env:
+          # Suppress heavy ML training output in CI (tests still execute correctly)
+          DOTNET_ENVIRONMENT: Testing
+          JWT_KEY: test-jwt-signing-key-32-characters-minimum-length!
+          JWT_ISSUER: ClinicManagementSystem
+          JWT_AUDIENCE: ClinicManagementSystemAPI
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: ./test-results/*.trx
+          retention-days: 14
+
+      - name: Test summary
+        if: always() && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
+        uses: dorny/test-reporter@v1
+        with:
+          name: xUnit Test Results
+          path: "./test-results/*.trx"
+          reporter: dotnet-trx
+          fail-on-error: false

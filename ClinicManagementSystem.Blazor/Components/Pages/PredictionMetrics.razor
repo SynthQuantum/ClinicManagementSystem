@@ -116,7 +116,36 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await TrainAndEvaluate();
+        var latest = await PredictionService.GetLatestNoShowModelMetricsAsync();
+        if (latest is null)
+        {
+            await TrainAndEvaluate();
+            return;
+        }
+
+        _trainingResult = new NoShowTrainingResult
+        {
+            DatasetPath = latest.DatasetPath,
+            ModelPath = latest.ModelPath,
+            TrainRowCount = latest.TrainRowCount,
+            TestRowCount = latest.TestRowCount,
+            Metrics = new NoShowTrainingMetrics
+            {
+                Accuracy = latest.Accuracy,
+                Precision = latest.Precision,
+                Recall = latest.Recall,
+                F1Score = latest.F1Score,
+                Auc = latest.Auc
+            },
+            Evaluation = latest
+        };
+
+        _datasetResult = new NoShowDatasetGenerationResult
+        {
+            DatasetPath = latest.DatasetPath,
+            GeneratedRows = latest.TrainRowCount + latest.TestRowCount,
+            RequestedRows = latest.TrainRowCount + latest.TestRowCount
+        };
     }
 
     private async Task GenerateDataset()

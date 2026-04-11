@@ -101,6 +101,14 @@ public class ControllersUnitTests
 
         public Task<bool> DeleteAsync(Guid id) => Task.FromResult(true);
         public Task<IEnumerable<Appointment>> GetAllAsync() => Task.FromResult(Enumerable.Empty<Appointment>());
+        public Task<IEnumerable<Appointment>> SearchAsync(
+            DateTime? fromDate = null,
+            DateTime? toDate = null,
+            Guid? patientId = null,
+            Guid? staffMemberId = null,
+            AppointmentStatus? status = null,
+            bool highRiskOnly = false)
+            => Task.FromResult(Enumerable.Empty<Appointment>());
         public Task<IEnumerable<Appointment>> GetByDateAsync(DateTime date) => Task.FromResult(Enumerable.Empty<Appointment>());
         public Task<Appointment?> GetByIdAsync(Guid id) => Task.FromResult<Appointment?>(null);
         public Task<IEnumerable<Appointment>> GetByPatientAsync(Guid patientId) => Task.FromResult(Enumerable.Empty<Appointment>());

@@ -14,6 +14,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IStaffService, StaffService>();
         services.AddScoped<IDashboardService, DashboardService>();
         services.AddScoped<IVisitRecordService, VisitRecordService>();
+        services.AddSingleton<IPerformanceMonitoringService, PerformanceMonitoringService>();
+        services.AddScoped<IEmailSender, LoggingEmailSender>();
+        services.AddScoped<ISmsSender, LoggingSmsSender>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IPredictionService, PredictionService>();
         services.AddScoped<IPredictionResultService, PredictionResultService>();

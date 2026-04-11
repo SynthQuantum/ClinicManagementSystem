@@ -1,341 +1,246 @@
-# ClinicManagementSystem
+# Clinic Management System
 
-ClinicManagementSystem is a .NET 10 capstone prototype for outpatient clinic workflows.
+## Project Overview
 
-It currently delivers end-to-end functionality for patient management, staff management, appointment scheduling with conflict detection, dashboard insights, deterministic seed data, and local ML.NET no-show risk prediction.
+Clinic Management System is a .NET 10 capstone application for outpatient clinic operations. It combines a Blazor Server frontend, an ASP.NET Core Web API, an EF Core SQL Server data layer, and an ML.NET no-show prediction pipeline.
 
-It now includes production-ready authentication and role-based authorization via ASP.NET Core Identity + EF Core.
+The repository now documents and demonstrates a complete capstone narrative: role-based workflows, auditable operations, scheduling safeguards, dashboard insights, and local AI-assisted no-show risk scoring.
 
-## Implemented Scope (Current Prototype)
+## Business Problem
 
-- Patient module: create, read, update, soft delete, search
-- Staff module: create, read, update, soft delete
-- Appointment module: create, read, update, delete (soft), status updates
-- Scheduling conflict checks: prevents overlapping appointments for the same staff member or patient
-- Dashboard module:
-  - total patients
-  - total appointments
-  - today appointments
-  - completed appointments
-  - cancelled appointments
-  - no-show count and no-show rate
-  - appointment trend
-  - staff workload summary
-- Prediction module:
-  - local ML.NET synthetic dataset generation
-  - local ML.NET FastTree binary training and evaluation
-  - no-show risk inference (ML model with fallback logic)
-  - risk levels: Low, Medium, High
-  - recommendation text for scheduling team actions
+Small and medium clinics often struggle with fragmented workflows:
 
-## Tech Stack
+- Patient records are spread across informal tools
+- Appointment scheduling is prone to double booking
+- No-shows reduce utilization and increase wait times
+- Operational leaders lack real-time insight into workload and outcomes
 
-- .NET 10
-- ASP.NET Core Web API
-- Blazor Server (interactive server render mode)
-- Entity Framework Core + SQL Server
-- ML.NET (local only, no external AI APIs)
+This system addresses those pain points with a unified workflow that supports scheduling, patient/staff operations, notifications, dashboard analytics, and no-show risk support.
 
-## Solution Structure
+## Target Users
 
-- [ClinicManagementSystem.API](ClinicManagementSystem.API): REST APIs
-- [ClinicManagementSystem.Blazor](ClinicManagementSystem.Blazor): UI frontend
-- [ClinicManagementSystem.Data](ClinicManagementSystem.Data): EF Core DbContext and seed logic
-- [ClinicManagementSystem.Models](ClinicManagementSystem.Models): entities and DTOs
-- [ClinicManagementSystem.Services](ClinicManagementSystem.Services): business and ML services
+- Admin: manages staff, users, settings, and operational oversight
+- Doctor: views clinical workload, appointments, patients, and prediction insights
+- Receptionist: handles front-desk workflows for patients, appointments, and reminders
 
-## Architecture Overview
+## Architecture Summary
 
-```mermaid
-flowchart LR
-    UI[Blazor UI] --> SVC[Services Layer]
-    API[ASP.NET Core API] --> SVC
-    SVC --> DATA[EF Core DbContext]
-    DATA --> SQL[(SQL Server)]
-    SVC --> ML[ML.NET Pipeline]
-    ML --> ART[ml-artifacts/no-show]
-```
+Core solution projects:
 
-More details: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- ClinicManagementSystem.API: authenticated REST API layer
+- ClinicManagementSystem.Blazor: server-rendered web UI with role-aware pages
+- ClinicManagementSystem.Services: business logic and ML orchestration
+- ClinicManagementSystem.Data: EF Core DbContext, identity integration, and seeding
+- ClinicManagementSystem.Models: entities, enums, and DTO contracts
 
-## Setup
+Runtime flow:
+
+1. Blazor UI and API call service-layer abstractions
+2. Services enforce business rules and persistence behavior
+3. EF Core writes and reads SQL Server with soft-delete filters
+4. ML.NET artifacts are stored locally in ml-artifacts/no-show
+
+See docs/ARCHITECTURE.md for full details.
+
+## Implemented Features
+
+### Core Operations
+
+- Patient management: create, update, search, detail, soft delete
+- Staff management: create, update, list, detail, soft delete
+- Appointment management: create, update, status patch, list, detail, delete
+- Visit records: create and maintain encounter-level records
+- Clinic settings: get and upsert clinic profile and schedule defaults
+- Notifications: reminder creation, pending/history/summary views, send and process reminders
+
+### Scheduling and Workflow Safeguards
+
+- Conflict detection for overlapping appointments by:
+  - Staff member
+  - Patient
+- Time-range validation on appointment requests
+- Reminder deduplication rules in notification workflows
+
+### Dashboard and Monitoring
+
+- KPI summary: patients, appointments, completed, cancelled, no-show rate
+- Appointment trend data for lookback periods
+- Staff workload summaries
+- API performance telemetry:
+  - average latency
+  - p95 latency
+  - slow endpoints
+  - recent failed requests
+
+### Authentication, Authorization, and Auditability
+
+- ASP.NET Core Identity integration with custom App tables
+- JWT authentication for API clients
+- Cookie authentication for Blazor interactive sessions
+- Role-based authorization on API controllers and Blazor pages
+- Audit log entries for auth and business actions
+
+## Role Matrix
+
+| Capability Area                         | Admin | Doctor | Receptionist |
+| --------------------------------------- | ----- | ------ | ------------ |
+| Dashboard home and summary insights     | Yes   | Yes    | No           |
+| Patients pages and patient APIs         | Yes   | Yes    | Yes          |
+| Appointments pages and appointment APIs | Yes   | Yes    | Yes          |
+| Staff pages and staff APIs              | Yes   | No     | No           |
+| Prediction lab and no-show inference    | Yes   | Yes    | Yes          |
+| Notifications management pages and APIs | Yes   | Yes    | Yes          |
+| Performance reset endpoint              | Yes   | No     | No           |
+
+## API Endpoint Summary
+
+| Area              | Endpoints                                                                                                                                                                                                         | Notes                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Auth              | POST /api/auth/login, POST /api/auth/logout                                                                                                                                                                       | JWT login plus authenticated logout       |
+| Patients          | GET /api/Patients, GET /api/Patients/{id}, POST /api/Patients, PUT /api/Patients/{id}, DELETE /api/Patients/{id}                                                                                                  | Query search supported on list            |
+| StaffMembers      | GET /api/StaffMembers, GET /api/StaffMembers/{id}, POST /api/StaffMembers, PUT /api/StaffMembers/{id}, DELETE /api/StaffMembers/{id}                                                                              | Admin restricted                          |
+| Appointments      | GET /api/Appointments, GET /api/Appointments/{id}, POST /api/Appointments, PUT /api/Appointments/{id}, PATCH /api/Appointments/{id}/status, DELETE /api/Appointments/{id}                                         | Supports date, patient, and staff filters |
+| Dashboard         | GET /api/Dashboard/summary, GET /api/Dashboard/trend, GET /api/Dashboard/staff-workload                                                                                                                           | Admin and Doctor roles                    |
+| Predictions       | POST /api/Predictions/no-show, POST /api/Predictions/no-show/appointment/{appointmentId}, POST /api/Predictions/no-show/dataset, POST /api/Predictions/no-show/train, GET /api/Predictions/no-show/metrics/latest | Local ML.NET workflow                     |
+| Notifications     | GET /api/Notifications/pending, GET /api/Notifications/history, GET /api/Notifications/summary, POST /api/Notifications, POST /api/Notifications/{id}/send, POST /api/Notifications/process-reminders             | Reminder operations                       |
+| VisitRecords      | GET /api/VisitRecords/patient/{patientId}, GET /api/VisitRecords/{id}, POST /api/VisitRecords, PUT /api/VisitRecords/{id}, DELETE /api/VisitRecords/{id}                                                          | Encounter history                         |
+| AppUsers          | GET /api/AppUsers, GET /api/AppUsers/{id}, POST /api/AppUsers, PUT /api/AppUsers/{id}, DELETE /api/AppUsers/{id}                                                                                                  | Identity user management                  |
+| AuditLogs         | GET /api/AuditLogs, GET /api/AuditLogs/{id}, POST /api/AuditLogs                                                                                                                                                  | Audit persistence                         |
+| ClinicSettings    | GET /api/ClinicSettings, PUT /api/ClinicSettings                                                                                                                                                                  | Configuration profile                     |
+| PredictionResults | GET /api/PredictionResults/appointment/{appointmentId}, POST /api/PredictionResults                                                                                                                               | Stored prediction records                 |
+| Performance       | GET /api/Performance/summary, POST /api/Performance/reset                                                                                                                                                         | Runtime performance visibility            |
+
+## Database Entity Summary
+
+| Entity            | Purpose                                                                | Key Relationships                                                                     |
+| ----------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| AppUser           | Identity-backed user account with role metadata and soft-delete fields | Identity roles and claims tables                                                      |
+| Patient           | Demographics, insurance, contact, and emergency details                | One-to-many with Appointment and VisitRecord                                          |
+| StaffMember       | Clinical/front-desk personnel with role and specialty                  | One-to-many with Appointment and VisitRecord                                          |
+| Appointment       | Scheduled encounter with timing, status, and prediction fields         | Many-to-one to Patient and StaffMember; one-to-many Notification and PredictionResult |
+| VisitRecord       | Encounter documentation: diagnosis, treatment, prescription            | Many-to-one to Patient, StaffMember, optional Appointment                             |
+| Notification      | Appointment-linked reminders and delivery status                       | Many-to-one to Appointment                                                            |
+| PredictionResult  | Stored model outputs and metadata for appointments                     | Many-to-one to Appointment                                                            |
+| AuditLog          | Audit trail of auth and domain actions                                 | Optional actor and entity references                                                  |
+| ClinicSettings    | Clinic-level operational configuration                                 | Standalone configuration entity                                                       |
+| PerformanceSample | Request latency and status telemetry records                           | Standalone performance entity                                                         |
+
+## AI No-Show Prediction Summary
+
+The no-show subsystem is implemented with ML.NET and supports:
+
+- Direct feature-based inference
+- Appointment-based inference with optional persistence
+- Synthetic plus historical dataset generation
+- FastTree binary classifier training and metric reporting
+- Local artifact persistence:
+  - ml-artifacts/no-show/no_show_training_data.csv
+  - ml-artifacts/no-show/no_show_model.zip
+  - ml-artifacts/no-show/no_show_model_metrics.json
+
+Model outputs include risk probability, categorical risk level, and recommendation text for follow-up actions.
+
+See docs/ML.md for full model details.
+
+## Security and Privacy Considerations
+
+Implemented controls:
+
+- Authentication and role-based authorization in API and UI
+- JWT key fail-fast validation at API startup
+- Audit trail for authentication and domain actions
+- Request auditing and performance middleware
+- DTO-based write paths for core API modules
+- Global soft-delete query filters in DbContext
+
+Operational requirements for any real deployment:
+
+- Use HTTPS and secure transport everywhere
+- Store secrets outside source control
+- Enforce access governance and least privilege
+- Define retention and monitoring policies for sensitive records
+
+See docs/SECURITY.md for implementation and hardening guidance.
+
+## Setup Instructions
 
 ### Prerequisites
 
 - .NET SDK 10
-- SQL Server (local or remote)
+- SQL Server instance
 
-### Configure Connection Strings
+### 1. Configure Connection Strings
 
-Set ClinicDb in:
+Update ClinicDb connection string in:
 
-- [ClinicManagementSystem.API/appsettings.Development.json](ClinicManagementSystem.API/appsettings.Development.json)
-- [ClinicManagementSystem.Blazor/appsettings.Development.json](ClinicManagementSystem.Blazor/appsettings.Development.json)
+- ClinicManagementSystem.API/appsettings.Development.json
+- ClinicManagementSystem.Blazor/appsettings.Development.json
 
-### Restore and Build
+### 2. Configure JWT Secret for API
 
-```powershell
-dotnet restore
-dotnet build --configuration Release
-```
+From the API project folder:
 
-## Database and Seed Behavior
+    dotnet user-secrets init
+    dotnet user-secrets set Jwt:Key "your-strong-random-secret"
 
-Startup behavior currently implemented in both API and Blazor:
+The API does not start if Jwt:Key is missing.
 
-1. Apply migrations if pending
-2. Run development seed data idempotently
-3. Run Identity seed idempotently (roles + development admin account)
+### 3. Optional Development Admin Seeding
 
-Seed logic file:
+In API development configuration, set:
 
-- [ClinicManagementSystem.Data/DevelopmentDataSeeder.cs](ClinicManagementSystem.Data/DevelopmentDataSeeder.cs)
+- IdentitySeed:SeedAdmin=true
+- IdentitySeed:AdminEmail=your-admin-email
+- IdentitySeed:AdminPassword=your-strong-password
 
-Seed details: [docs/SEED_DATA.md](docs/SEED_DATA.md)
+### 4. Restore and Build
 
-## Authentication and Authorization
+    dotnet restore
+    dotnet build ClinicManagementSystem.slnx -c Debug
 
-### Identity Storage
+### 5. Run Applications
 
-- ASP.NET Core Identity is backed by EF Core in [ClinicManagementSystem.Data/ClinicDbContext.cs](ClinicManagementSystem.Data/ClinicDbContext.cs)
-- Custom Identity tables:
-  - AppUsers
-  - AppRoles
-  - AppUserRoles
-  - AppUserClaims
-  - AppUserLogins
-  - AppUserTokens
-  - AppRoleClaims
+API:
 
-### Seeded Roles
+    dotnet run --project ClinicManagementSystem.API
 
-- Admin
-- Doctor
-- Receptionist
+Blazor:
 
-### Development Admin Seed (Optional)
+    dotnet run --project ClinicManagementSystem.Blazor
 
-Default admin seeding is now disabled by default and requires explicit configuration.
+## Testing Instructions
 
-Set these values in development-only configuration (for example user secrets or local appsettings):
+Run full automated test suite:
 
-- `IdentitySeed:SeedAdmin=true`
-- `IdentitySeed:AdminEmail=<your dev admin email>`
-- `IdentitySeed:AdminPassword=<strong dev-only password>`
+    dotnet test ClinicManagementSystem.slnx --no-build --logger "console;verbosity=minimal"
 
-Outside Development/Testing, seeding is skipped unless `IdentitySeed:SeedAdmin=true` is explicitly set.
+Current baseline in repository:
 
-### API Login Endpoint
+- Total tests: 107
+- Failed: 0
 
-- `POST /api/auth/login`
-- Body:
+Detailed test strategy and project coverage are documented in docs/TESTING.md.
 
-```json
-{
-  "email": "<configured admin email>",
-  "password": "<configured admin password>"
-}
-```
+## Deployment Notes
 
-Returns JWT token + user/role payload.
+- The repository includes environment-specific appsettings files for API and Blazor.
+- Deployment currently targets self-managed environments (for example VM or App Service) using dotnet publish artifacts.
+- Migrations and seed logic are applied during startup when configured environment and provider conditions are met.
+- No production IaC templates are committed in this repository at this time.
 
-### Blazor Login/Logout
+See docs/DEPLOYMENT.md for step-by-step deployment guidance.
 
-- Login page: `/login`
-- Cookie auth login endpoint: `POST /account/login`
-- Logout endpoint: `POST /account/logout`
+## Limitations
 
-Blazor pages use route-level `[Authorize]` and role constraints.
+- This project is an educational capstone and learning artifact.
+- ML training data is synthetic plus local historical development data, not validated clinical production datasets.
+- The application is not production-certified healthcare software and has not been certified against formal medical compliance frameworks.
 
-### Role Matrix
+## Future Enhancements
 
-| Surface                 | Roles                       |
-| ----------------------- | --------------------------- |
-| API `/api/Patients`     | Admin, Doctor, Receptionist |
-| API `/api/StaffMembers` | Admin                       |
-| API `/api/Appointments` | Admin, Doctor, Receptionist |
-| API `/api/Dashboard`    | Admin, Doctor               |
-| API `/api/Predictions`  | Admin, Doctor, Receptionist |
-| Blazor Dashboard (`/`)  | Admin, Doctor               |
-| Blazor Patients         | Admin, Doctor, Receptionist |
-| Blazor Appointments     | Admin, Doctor, Receptionist |
-| Blazor Staff            | Admin                       |
-| Blazor Prediction pages | Admin, Doctor, Receptionist |
-
-### Authentication Audit Logging
-
-Authentication events are written to `AuditLogs` with `EntityName = "Authentication"` for:
-
-- LoginSuccess
-- LoginFailed
-- AccountLockedOut
-- Logout
-
-## Healthcare Privacy and Data Protection Considerations
-
-This project is an educational capstone and not a certified clinical production system. The following controls are implemented to move the prototype toward healthcare-ready engineering practices:
-
-- Least-privilege access with role-based authorization across API endpoints and Blazor pages
-- Endpoint access logging middleware that records user identifier, endpoint, timestamp, and success/failure outcome
-- Expanded audit trails for patient, staff, appointment, and prediction lifecycle actions
-- API write hardening with dedicated request DTOs to prevent over-posting of entity-controlled fields
-- Input validation on healthcare-relevant payloads (identity/contact fields, appointment time logic, and prediction request ranges)
-- Soft-delete-by-default query behavior enforced at the DbContext layer through global query filters
-
-Operational expectations for real deployments:
-
-- Use encryption at rest and in transit for all environments
-- Store secrets in managed secret providers (for example Azure Key Vault), never in source control
-- Apply strict retention and access policies for audit data and protected health information
-- Run security and privacy compliance validation before any production use
-
-### Secret Management: JWT Signing Key
-
-**Critical:** The JWT signing key (`Jwt:Key`) is a sensitive secret and must never be committed to source control.
-
-**Development Setup**
-
-Use .NET user-secrets to store the JWT key locally:
-
-```powershell
-cd ClinicManagementSystem.API
-dotnet user-secrets init
-dotnet user-secrets set Jwt:Key "your-strong-random-secret-key-here"
-```
-
-The key must be at least 32 characters and contain mixed case, numbers, and symbols.
-
-**Staging/Production Setup**
-
-Set environment variables on the deployment platform:
-
-```bash
-export Jwt:Key="<strong-random-production-secret>"
-```
-
-Or in Azure App Service: use Application Settings or Azure Key Vault with managed identity.
-
-**AppSettings Configuration**
-
-These keys have placeholder (empty) values in source control:
-
-- `Jwt:Key` (empty—must be provided at runtime via user-secrets or environment variables)
-- `Jwt:Issuer`
-- `Jwt:Audience`
-- `Jwt:ExpiryMinutes`
-
-All appsettings files:
-
-- [ClinicManagementSystem.API/appsettings.json](ClinicManagementSystem.API/appsettings.json) (base)
-- [ClinicManagementSystem.API/appsettings.Development.json](ClinicManagementSystem.API/appsettings.Development.json) (dev)
-- [ClinicManagementSystem.API/appsettings.Staging.json](ClinicManagementSystem.API/appsettings.Staging.json) (staging)
-- [ClinicManagementSystem.API/appsettings.Production.json](ClinicManagementSystem.API/appsettings.Production.json) (prod)
-
-**Runtime Validation**
-
-The API fails fast at startup with a clear error message if `Jwt:Key` is not configured.
-
-Missing Jwt:Key error:
-
-```
-Critical security configuration error: Jwt:Key is not configured.
-Set JWT_KEY environment variable or use 'dotnet user-secrets set Jwt:Key <strong-key>' in Development.
-Never commit JWT secrets to source control.
-```
-
-## Run the App
-
-### API
-
-```powershell
-dotnet run --project ClinicManagementSystem.API
-```
-
-### Blazor UI
-
-```powershell
-dotnet run --project ClinicManagementSystem.Blazor
-```
-
-## ML.NET Dataset Generation and Training
-
-Implemented API endpoints:
-
-- POST /api/Predictions/no-show/dataset?rows=1200
-- POST /api/Predictions/no-show/train
-- POST /api/Predictions/no-show/appointment/{appointmentId}?persist=true
-
-PowerShell examples:
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "https://localhost:5001/api/Predictions/no-show/dataset?rows=1200"
-Invoke-RestMethod -Method Post -Uri "https://localhost:5001/api/Predictions/no-show/train"
-```
-
-Generated artifacts (local):
-
-- Dataset CSV: [ml-artifacts/no-show/no_show_training_data.csv](ml-artifacts/no-show/no_show_training_data.csv)
-- Model ZIP: [ml-artifacts/no-show/no_show_model.zip](ml-artifacts/no-show/no_show_model.zip)
-
-ML documentation: [docs/ML.md](docs/ML.md)
-
-## Measurable Prototype Evidence
-
-### Seeded Data Volumes
-
-Current deterministic seed targets:
-
-- Patients: 20
-- StaffMembers: 6
-- Appointments: 45
-- Notifications: 32
-- VisitRecords: 16
-- ClinicSettings: 1
-- PredictionResults: seeded from high-risk appointments
-
-### Implemented Modules
-
-- PatientsController
-- StaffMembersController
-- AppointmentsController
-- DashboardController
-- PredictionsController
-
-### ML Evaluation Outputs
-
-Training endpoint returns:
-
-- Accuracy
-- Precision
-- Recall
-- F1Score
-- AUC
-- TrainRowCount
-- TestRowCount
-- DatasetPath
-- ModelPath
-
-### UI Evidence
-
-- Dashboard KPI cards and trend/workload widgets
-- Appointment conflict warnings in scheduling flow
-- Appointment detail risk scoring with recommendation
-- Dedicated ML metrics page at /predictions/metrics
-
-## Current Status vs Planned Features
-
-### Current
-
-- Core clinic operations implemented and connected
-- Deterministic seed data and ML scaffolding available
-- Local inference integrated into appointment workflow
-
-### Planned Next
-
-- Expand model feature engineering with real historical data
-- Add automated test suite coverage for services and controllers
-- Add performance baseline captures and API latency dashboard
-
-## Testing Notes
-
-Current testing documentation: [docs/TESTING.md](docs/TESTING.md)
+- Expand integration tests for validation and conflict-negative API paths
+- Introduce CI coverage reporting and quality gates
+- Add production-ready delivery providers for email and SMS
+- Add secure secret-provider integration and environment hardening automation
+- Enhance ML feature engineering with richer historical appointment behavior
+- Add deployment automation with infrastructure-as-code and release workflows

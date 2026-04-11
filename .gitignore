@@ -152,6 +152,8 @@ _TeamCity*
 
 # Coverlet is a free, cross platform Code Coverage Tool
 coverage*.json
+# Archives
+*.zip
 coverage*.xml
 coverage*.info
 
@@ -480,3 +482,4 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+ml-artifacts/no-show/no_show_model.zip

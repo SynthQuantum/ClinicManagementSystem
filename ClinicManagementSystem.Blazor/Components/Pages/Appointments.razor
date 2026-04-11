@@ -19,85 +19,142 @@
                       Click="@(() => Nav.NavigateTo("/appointments/new"))" />
     </RadzenStack>
 
-    <!-- Filters -->
-    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" AlignItems="AlignItems.Center">
-        <RadzenFormField Text="Filter Date">
-            <RadzenDatePicker @bind-Value="_filterDate" DateFormat="yyyy-MM-dd" Change="@OnDateChanged" />
-        </RadzenFormField>
-        <RadzenFormField Text="Status">
-            <RadzenDropDown @bind-Value="_filterStatus" Data="@(Enum.GetValues<AppointmentStatus>())" AllowClear="true"
-                            Change="@(_ => ApplyFilters())" Placeholder="Any status" />
-        </RadzenFormField>
-        <RadzenFormField Text="Staff">
-            <RadzenDropDown @bind-Value="_filterStaffId" Data="@_staff" TextProperty="FullName" ValueProperty="Id"
-                            AllowClear="true" Change="@(_ => LoadAsync())" Placeholder="Any staff" />
-        </RadzenFormField>
-        <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Light" Click="@ClearFilter" />
-    </RadzenStack>
+    <RadzenCard>
+        <RadzenText TextStyle="TextStyle.H6">Schedule Filters</RadzenText>
+        <RadzenRow Gap="1rem">
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenFormField Text="From Date" Style="width:100%">
+                    <RadzenDatePicker @bind-Value="_fromDate" DateFormat="yyyy-MM-dd" Change="@(_ => LoadAsync())"
+                                      Style="width:100%" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenFormField Text="To Date" Style="width:100%">
+                    <RadzenDatePicker @bind-Value="_toDate" DateFormat="yyyy-MM-dd" Change="@(_ => LoadAsync())"
+                                      Style="width:100%" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenFormField Text="Staff Member" Style="width:100%">
+                    <RadzenDropDown @bind-Value="_filterStaffId" Data="@_staff" TextProperty="FullName"
+                                    ValueProperty="Id" AllowClear="true" Change="@(_ => LoadAsync())" Placeholder="Any staff"
+                                    Style="width:100%" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="6" SizeMD="3">
+                <RadzenFormField Text="Status" Style="width:100%">
+                    <RadzenDropDown @bind-Value="_filterStatus" Data="@(Enum.GetValues<AppointmentStatus>())"
+                                    AllowClear="true" Change="@(_ => LoadAsync())" Placeholder="Any status" Style="width:100%" />
+                </RadzenFormField>
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="8" SizeMD="6">
+                <RadzenCheckBox @bind-Value="_highRiskOnly" TriState="false" TValue="bool"
+                                Change="@(_ => LoadAsync())" />
+                <RadzenLabel Text=" Show high-risk appointments only" Component="highRiskOnly" />
+            </RadzenColumn>
+            <RadzenColumn SizeXS="12" SizeSM="4" SizeMD="6">
+                <RadzenStack Orientation="Orientation.Horizontal" JustifyContent="JustifyContent.End" Gap="0.5rem">
+                    <RadzenButton Text="Today" ButtonStyle="ButtonStyle.Light" Icon="today" Click="SetToday" />
+                    <RadzenButton Text="Clear" ButtonStyle="ButtonStyle.Light" Icon="filter_alt_off"
+                                  Click="ClearFilter" />
+                </RadzenStack>
+            </RadzenColumn>
+        </RadzenRow>
+    </RadzenCard>
 
-    @if (!string.IsNullOrWhiteSpace(_error))
-    {
-        <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
-            Failed to load appointments. @_error
-        </RadzenAlert>
-        <RadzenButton Text="Retry" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadAsync" />
-    }
+    <RadzenRow Gap="1rem">
+        <RadzenColumn SizeXS="12" SizeSM="4">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.Overline">Total Matching</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5">@_appointments.Count</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn SizeXS="12" SizeSM="4">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.Overline">High-Risk Count</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5">@_appointments.Count(IsHighRisk)</RadzenText>
+            </RadzenCard>
+        </RadzenColumn>
+        <RadzenColumn SizeXS="12" SizeSM="4">
+            <RadzenCard>
+                <RadzenText TextStyle="TextStyle.Overline">Today Matching</RadzenText>
+                <RadzenText TextStyle="TextStyle.H5">@_appointments.Count(a => a.AppointmentDate.Date ==
+                                        DateTime.UtcNow.Date)</RadzenText>
+                </RadzenCard>
+            </RadzenColumn>
+        </RadzenRow>
 
-    <RadzenDataGrid Data="@_appointments" TItem="Appointment" AllowSorting="true" AllowPaging="true" PageSize="15"
-                    IsLoading="@_loading">
-        <Columns>
-            <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
-                                  FormatString="{0:yyyy-MM-dd}" />
-            <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Start" />
-            <RadzenDataGridColumn TItem="Appointment" Property="EndTime" Title="End" />
-            <RadzenDataGridColumn TItem="Appointment" Property="Patient.FullName" Title="Patient" />
-            <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Doctor" />
-            <RadzenDataGridColumn TItem="Appointment" Property="AppointmentType" Title="Type" />
-            <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status">
-                <Template Context="appt">
-                    <RadzenBadge BadgeStyle="@GetBadgeStyle(appt.Status)" Text="@appt.Status.ToString()" />
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Appointment" Property="IsPredictedNoShow" Title="No-Show Risk" Width="130px">
-                <Template Context="appt">
-                    @if (appt.IsPredictedNoShow)
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Danger" Text="High Risk" />
-                    }
-                    else
-                    {
-                        <RadzenBadge BadgeStyle="BadgeStyle.Success" Text="Low Risk" />
-                    }
-                </Template>
-            </RadzenDataGridColumn>
-            <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="140px" Sortable="false">
-                <Template Context="appt">
-                    <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
-                                  Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}"))" />
-                    <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
-                                  Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}/edit"))" />
-                    <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
-                                  Click="@(() => DeleteAppointment(appt.Id))" />
-                </Template>
-            </RadzenDataGridColumn>
-        </Columns>
-        <EmptyTemplate>
-            <RadzenText TextStyle="TextStyle.Body2">No appointments found for the selected filters.</RadzenText>
-        </EmptyTemplate>
-    </RadzenDataGrid>
-</RadzenStack>
+        @if (!string.IsNullOrWhiteSpace(_warning))
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Warning" ShowIcon="true">@_warning</RadzenAlert>
+        }
+
+        @if (!string.IsNullOrWhiteSpace(_error))
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" ShowIcon="true">
+                Failed to load appointments. @_error
+            </RadzenAlert>
+            <RadzenButton Text="Retry" Icon="refresh" ButtonStyle="ButtonStyle.Light" Click="LoadAsync" />
+        }
+
+        <RadzenDataGrid Data="@_appointments" TItem="Appointment" AllowSorting="true" AllowPaging="true" PageSize="15"
+                        IsLoading="@_loading" EmptyText="No appointments found for selected filters.">
+            <Columns>
+                <RadzenDataGridColumn TItem="Appointment" Property="AppointmentDate" Title="Date"
+                                      FormatString="{0:yyyy-MM-dd}" Width="125px" />
+                <RadzenDataGridColumn TItem="Appointment" Property="StartTime" Title="Start" Width="90px" />
+                <RadzenDataGridColumn TItem="Appointment" Property="EndTime" Title="End" Width="90px" />
+                <RadzenDataGridColumn TItem="Appointment" Property="Patient.FullName" Title="Patient" />
+                <RadzenDataGridColumn TItem="Appointment" Property="StaffMember.FullName" Title="Staff" />
+                <RadzenDataGridColumn TItem="Appointment" Property="AppointmentType" Title="Type" Width="125px" />
+                <RadzenDataGridColumn TItem="Appointment" Property="Status" Title="Status" Width="120px">
+                    <Template Context="appt">
+                        <RadzenBadge BadgeStyle="@GetBadgeStyle(appt.Status)" Text="@appt.Status.ToString()" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="Appointment" Title="No-Show Risk" Width="230px" Sortable="false">
+                    <Template Context="appt">
+                        <RadzenStack Gap="0.25rem">
+                            <RadzenBadge BadgeStyle="@GetRiskBadgeStyle(appt)" Text="@GetRiskLabel(appt)" />
+                            @if (appt.NoShowProbability.HasValue)
+                            {
+                                <RadzenText TextStyle="TextStyle.Caption">@($"Probability:              {Math.Round(appt.NoShowProbability.Value * 100, 1)}%")</RadzenText>
+                            }
+                            @if (IsHighRisk(appt))
+                            {
+                                <RadzenText TextStyle="TextStyle.Caption">Recommendation: confirm attendance and prepare backup
+                                    slot.</RadzenText>
+                                }
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDataGridColumn>
+                    <RadzenDataGridColumn TItem="Appointment" Title="Actions" Width="140px" Sortable="false">
+                        <Template Context="appt">
+                            <RadzenButton Icon="visibility" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                          Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}"))" />
+                            <RadzenButton Icon="edit" ButtonStyle="ButtonStyle.Secondary" Size="ButtonSize.Small"
+                                          Click="@(() => Nav.NavigateTo($"/appointments/{appt.Id}/edit"))" />
+                            <RadzenButton Icon="delete" ButtonStyle="ButtonStyle.Danger" Size="ButtonSize.Small"
+                                          Click="@(() => DeleteAppointment(appt.Id))" />
+                        </Template>
+                    </RadzenDataGridColumn>
+                </Columns>
+            </RadzenDataGrid>
+        </RadzenStack>
 
 <RadzenNotification />
 
 @code {
-    private List<Appointment> _allAppointments = [];
-    private IEnumerable<Appointment> _appointments = [];
+    private List<Appointment> _appointments = [];
     private IEnumerable<StaffMember> _staff = [];
     private bool _loading = true;
-    private DateTime? _filterDate;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
     private AppointmentStatus? _filterStatus;
     private Guid? _filterStaffId;
+    private bool _highRiskOnly;
     private string? _error;
+    private string? _warning;
 
     protected override async Task OnInitializedAsync()
     {
@@ -110,20 +167,36 @@
     {
         _loading = true;
         _error = null;
+        _warning = null;
+
         try
         {
-            _allAppointments = _filterStaffId.HasValue
-                ? (await AppointmentService.GetByStaffAsync(_filterStaffId.Value)).ToList()
-                : (await AppointmentService.GetAllAsync()).ToList();
+            var fromDate = _fromDate?.Date;
+            var toDate = _toDate?.Date;
 
-            ApplyFilters();
-            Logger.LogInformation("Loaded {Count} appointments", _appointments.Count());
+            if (fromDate.HasValue && toDate.HasValue && fromDate > toDate)
+            {
+                _warning = "From Date was after To Date. Filters were auto-corrected.";
+                (fromDate, toDate) = (toDate, fromDate);
+                _fromDate = fromDate;
+                _toDate = toDate;
+            }
+
+            _appointments = (await AppointmentService.SearchAsync(
+                    fromDate,
+                    toDate,
+                    patientId: null,
+                    staffMemberId: _filterStaffId,
+                    status: _filterStatus,
+                    highRiskOnly: _highRiskOnly))
+                .ToList();
+
+            Logger.LogInformation("Loaded {Count} appointments", _appointments.Count);
         }
         catch (Exception ex)
         {
             _error = ex.Message;
             _appointments = [];
-            _allAppointments = [];
             Logger.LogError(ex, "Failed to load appointments");
         }
         finally
@@ -132,18 +205,21 @@
         }
     }
 
-    private async Task OnDateChanged(DateTime? date)
+    private Task SetToday()
     {
-        _filterDate = date;
-        ApplyFilters();
-        await Task.CompletedTask;
+        var today = DateTime.Today;
+        _fromDate = today;
+        _toDate = today;
+        return LoadAsync();
     }
 
     private async Task ClearFilter()
     {
-        _filterDate = null;
+        _fromDate = null;
+        _toDate = null;
         _filterStatus = null;
         _filterStaffId = null;
+        _highRiskOnly = false;
         await LoadAsync();
     }
 
@@ -154,26 +230,29 @@
         await LoadAsync();
     }
 
-    private void ApplyFilters()
+    private static bool IsHighRisk(Appointment appointment)
+        => appointment.IsPredictedNoShow || (appointment.NoShowProbability ?? 0m) >= 0.70m;
+
+    private static string GetRiskLabel(Appointment appointment)
     {
-        IEnumerable<Appointment> query = _allAppointments;
-
-        if (_filterDate.HasValue)
+        if (!appointment.NoShowProbability.HasValue && !appointment.IsPredictedNoShow)
         {
-            var date = _filterDate.Value.Date;
-            query = query.Where(a => a.AppointmentDate.Date == date);
+            return "Not Scored";
         }
 
-        if (_filterStatus.HasValue)
-        {
-            var status = _filterStatus.Value;
-            query = query.Where(a => a.Status == status);
-        }
+        var probability = appointment.NoShowProbability ?? (appointment.IsPredictedNoShow ? 0.80m : 0.20m);
+        return probability < 0.40m ? "Low" : probability <= 0.70m ? "Medium" : "High";
+    }
 
-        _appointments = query
-            .OrderBy(a => a.AppointmentDate)
-            .ThenBy(a => a.StartTime)
-            .ToList();
+    private static BadgeStyle GetRiskBadgeStyle(Appointment appointment)
+    {
+        return GetRiskLabel(appointment) switch
+        {
+            "High" => BadgeStyle.Danger,
+            "Medium" => BadgeStyle.Warning,
+            "Low" => BadgeStyle.Success,
+            _ => BadgeStyle.Secondary
+        };
     }
 
     private static BadgeStyle GetBadgeStyle(AppointmentStatus status) => status switch
@@ -182,6 +261,7 @@
         AppointmentStatus.Cancelled => BadgeStyle.Warning,
         AppointmentStatus.NoShow => BadgeStyle.Danger,
         AppointmentStatus.Scheduled => BadgeStyle.Info,
+        AppointmentStatus.Confirmed => BadgeStyle.Primary,
         _ => BadgeStyle.Secondary
     };
 }

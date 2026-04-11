@@ -1,8 +1,10 @@
 using ClinicManagementSystem.API.Auth;
+using ClinicManagementSystem.API.BackgroundServices;
 using ClinicManagementSystem.API.Middleware;
 using ClinicManagementSystem.Data;
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services;
+using ClinicManagementSystem.Services.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +13,18 @@ using System.Text;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
+var startupBehavior = builder.Configuration
+    .GetSection(StartupBehaviorOptions.SectionName)
+    .Get<StartupBehaviorOptions>() ?? new StartupBehaviorOptions();
+
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    startupBehavior.SeedIdentityData = true;
+}
+
+ValidateRequiredConfiguration(builder.Configuration, builder.Environment);
+
+var connectionString = builder.Configuration.GetConnectionString("ClinicDb");
 
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -28,7 +42,7 @@ else
 {
     builder.Services.AddDbContext<ClinicDbContext>(options =>
         options.UseSqlServer(
-            builder.Configuration.GetConnectionString("ClinicDb"),
+            connectionString,
             sqlOptions => sqlOptions.EnableRetryOnFailure(
                 maxRetryCount: 5,
                 maxRetryDelay: TimeSpan.FromSeconds(10),
@@ -50,8 +64,53 @@ builder.Services.AddIdentityCore<AppUser>(options =>
 .AddSignInManager()
 .AddDefaultTokenProviders();
 
-var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtSection = builder.Configuration.GetSection("Authentication:Jwt");
+if (!jwtSection.Exists())
+{
+    jwtSection = builder.Configuration.GetSection("Jwt");
+}
+
 var jwtKey = jwtSection["Key"];
+var jwtIssuer = jwtSection["Issuer"];
+var jwtAudience = jwtSection["Audience"];
+
+const string testingJwtKey = "integration-test-jwt-signing-key-32-characters-minimum";
+const string testingJwtIssuer = "ClinicManagementSystem";
+const string testingJwtAudience = "ClinicManagementSystemAPI";
+
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    jwtKey = testingJwtKey;
+    jwtIssuer = testingJwtIssuer;
+    jwtAudience = testingJwtAudience;
+}
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    jwtKey = builder.Configuration["JWT_KEY"];
+}
+
+if (string.IsNullOrWhiteSpace(jwtIssuer))
+{
+    jwtIssuer = builder.Configuration["JWT_ISSUER"];
+}
+
+if (string.IsNullOrWhiteSpace(jwtAudience))
+{
+    jwtAudience = builder.Configuration["JWT_AUDIENCE"];
+}
+
+if (string.IsNullOrWhiteSpace(jwtKey) && builder.Environment.IsEnvironment("Testing"))
+{
+    // Test-only fallback so integration tests can bootstrap in isolated CI environments.
+    jwtKey = testingJwtKey;
+}
+
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    jwtIssuer ??= testingJwtIssuer;
+    jwtAudience ??= testingJwtAudience;
+}
 
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
@@ -59,6 +118,13 @@ if (string.IsNullOrWhiteSpace(jwtKey))
         "Critical security configuration error: Jwt:Key is not configured. " +
         "Set JWT_KEY environment variable or use 'dotnet user-secrets set Jwt:Key <strong-key>' in Development. " +
         "Never commit JWT secrets to source control.");
+}
+
+if (string.IsNullOrWhiteSpace(jwtIssuer) || string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException(
+        "Critical security configuration error: Jwt:Issuer and Jwt:Audience are required. " +
+        "Set Jwt:Issuer/Jwt:Audience or JWT_ISSUER/JWT_AUDIENCE.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -70,8 +136,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSection["Issuer"],
-            ValidAudience = jwtSection["Audience"],
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
@@ -79,6 +145,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 builder.Services.AddAuthorization();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddClinicServices();
+builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
+builder.Services.Configure<PerformanceMonitoringOptions>(builder.Configuration.GetSection(PerformanceMonitoringOptions.SectionName));
+builder.Services.Configure<MlArtifactsOptions>(builder.Configuration.GetSection(MlArtifactsOptions.SectionName));
+builder.Services.Configure<StartupBehaviorOptions>(builder.Configuration.GetSection(StartupBehaviorOptions.SectionName));
+builder.Services.AddHostedService<ReminderProcessingHostedService>();
+builder.Services.AddHostedService<PerformanceSampleFlushHostedService>();
 
 var app = builder.Build();
 
@@ -91,7 +163,9 @@ using (var scope = app.Services.CreateScope())
 
         if (db.Database.IsRelational())
         {
-            if (db.Database.GetMigrations().Any())
+            var hasMigrations = db.Database.GetMigrations().Any();
+
+            if (startupBehavior.ApplyMigrations && hasMigrations)
             {
                 if (db.Database.GetPendingMigrations().Any())
                 {
@@ -103,33 +177,56 @@ using (var scope = app.Services.CreateScope())
                     logger.LogInformation("No pending migrations.");
                 }
             }
-            else
+            else if (!hasMigrations && startupBehavior.EnsureCreatedWhenNoMigrations)
             {
                 db.Database.EnsureCreated();
                 logger.LogInformation("Database created with EnsureCreated (no migrations found).");
             }
+            else
+            {
+                logger.LogInformation("Relational startup initialization skipped. ApplyMigrations={ApplyMigrations}, EnsureCreatedWhenNoMigrations={EnsureCreatedWhenNoMigrations}, HasMigrations={HasMigrations}",
+                    startupBehavior.ApplyMigrations,
+                    startupBehavior.EnsureCreatedWhenNoMigrations,
+                    hasMigrations);
+            }
         }
-        else
+        else if (startupBehavior.EnsureCreatedWhenNoMigrations)
         {
             db.Database.EnsureCreated();
             logger.LogInformation("Database created with EnsureCreated for non-relational provider.");
         }
-
-        await DevelopmentDataSeeder.SeedAsync(db, logger);
-
-        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+        else
         {
-            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger);
+            logger.LogInformation("EnsureCreated skipped for non-relational provider by StartupBehavior settings.");
+        }
+
+        if (startupBehavior.SeedDevelopmentData)
+        {
+            await DevelopmentDataSeeder.SeedAsync(db, logger);
         }
         else
         {
-            logger.LogInformation("Skipping identity seeding outside Development/Testing environments.");
+            logger.LogInformation("DevelopmentDataSeeder skipped by StartupBehavior settings.");
+        }
+
+        if (startupBehavior.SeedIdentityData)
+        {
+            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger, app.Configuration, app.Environment);
+        }
+        else
+        {
+            logger.LogInformation("IdentitySeeder skipped by StartupBehavior settings.");
         }
     }
     catch (Exception ex)
     {
         logger.LogError(ex, "Database migration/seed failed during startup.");
-        throw;
+        if (startupBehavior.FailFastOnInitializationError)
+        {
+            throw;
+        }
+
+        logger.LogWarning("Continuing startup because StartupBehavior:FailFastOnInitializationError is false.");
     }
 }
 
@@ -140,6 +237,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseMiddleware<PerformanceMonitoringMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<RequestAuditLoggingMiddleware>();
 app.UseAuthorization();
@@ -147,5 +245,39 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static void ValidateRequiredConfiguration(IConfiguration configuration, IHostEnvironment environment)
+{
+    if (!environment.IsEnvironment("Testing")
+        && string.IsNullOrWhiteSpace(configuration.GetConnectionString("ClinicDb")))
+    {
+        throw new InvalidOperationException("Configuration error: ConnectionStrings:ClinicDb is required outside Testing.");
+    }
+
+    var mlOptions = configuration.GetSection(MlArtifactsOptions.SectionName).Get<MlArtifactsOptions>() ?? new MlArtifactsOptions();
+    if (string.IsNullOrWhiteSpace(mlOptions.NoShowArtifactsPath))
+    {
+        throw new InvalidOperationException("Configuration error: MlArtifacts:NoShowArtifactsPath is required.");
+    }
+
+    var notificationOptions = configuration.GetSection(NotificationReminderOptions.SectionName).Get<NotificationReminderOptions>() ?? new NotificationReminderOptions();
+    if (notificationOptions.FirstReminderHoursBefore <= 0
+        || notificationOptions.SecondReminderHoursBefore <= 0
+        || notificationOptions.ProcessingBatchSize <= 0
+        || notificationOptions.ProcessorIntervalSeconds <= 0)
+    {
+        throw new InvalidOperationException("Configuration error: NotificationReminders values must be greater than zero.");
+    }
+
+    var performanceOptions = configuration.GetSection(PerformanceMonitoringOptions.SectionName).Get<PerformanceMonitoringOptions>() ?? new PerformanceMonitoringOptions();
+    if (performanceOptions.FlushIntervalSeconds <= 0
+        || performanceOptions.MaxInMemorySamples <= 0
+        || performanceOptions.MaxSummarySamples <= 0
+        || performanceOptions.SlowEndpointCount <= 0
+        || performanceOptions.RecentFailedRequestCount <= 0)
+    {
+        throw new InvalidOperationException("Configuration error: PerformanceMonitoring values must be greater than zero.");
+    }
+}
 
 public partial class Program;

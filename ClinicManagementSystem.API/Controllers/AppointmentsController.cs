@@ -26,27 +26,30 @@ public class AppointmentsController : ControllerBase
 
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Appointment>>> GetAll(
-        [FromQuery] DateTime? date,
-        [FromQuery] Guid? patientId,
-        [FromQuery] Guid? staffMemberId)
+        [FromQuery] DateTime? date = null,
+        [FromQuery] DateTime? fromDate = null,
+        [FromQuery] DateTime? toDate = null,
+        [FromQuery] Guid? patientId = null,
+        [FromQuery] Guid? staffMemberId = null,
+        [FromQuery] AppointmentStatus? status = null,
+        [FromQuery] bool highRiskOnly = false)
     {
+        if (date.HasValue)
+        {
+            fromDate = date.Value.Date;
+            toDate = date.Value.Date;
+        }
+
         _logger.LogInformation(
-            "API: fetching appointments. Date filter: {Date}, Patient: {PatientId}, Staff: {StaffId}",
-            date,
+            "API: fetching appointments. From: {FromDate}, To: {ToDate}, Patient: {PatientId}, Staff: {StaffId}, Status: {Status}, HighRiskOnly: {HighRiskOnly}",
+            fromDate,
+            toDate,
             patientId,
-            staffMemberId);
+            staffMemberId,
+            status,
+            highRiskOnly);
 
-        if (patientId.HasValue)
-        {
-            return Ok(await _service.GetByPatientAsync(patientId.Value));
-        }
-
-        if (staffMemberId.HasValue)
-        {
-            return Ok(await _service.GetByStaffAsync(staffMemberId.Value));
-        }
-
-        return Ok(date.HasValue ? await _service.GetByDateAsync(date.Value) : await _service.GetAllAsync());
+        return Ok(await _service.SearchAsync(fromDate, toDate, patientId, staffMemberId, status, highRiskOnly));
     }
 
     [HttpGet("{id:guid}")]

@@ -71,6 +71,18 @@ public class PredictionsController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("no-show/metrics/latest")]
+    public async Task<ActionResult<NoShowModelEvaluationResult>> GetLatestNoShowMetrics(CancellationToken cancellationToken = default)
+    {
+        var result = await _predictionService.GetLatestNoShowModelMetricsAsync(cancellationToken);
+        if (result is null)
+        {
+            return NotFound("No stored no-show model metrics were found.");
+        }
+
+        return Ok(result);
+    }
+
     private async Task WriteAuditAsync(string entityName, string actionType, Guid? entityId, string description)
     {
         var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub");

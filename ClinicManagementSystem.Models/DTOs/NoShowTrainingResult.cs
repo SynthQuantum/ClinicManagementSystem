@@ -11,4 +11,6 @@ public class NoShowTrainingResult
     public int TestRowCount { get; set; }
 
     public NoShowTrainingMetrics Metrics { get; set; } = new();
+
+    public NoShowModelEvaluationResult Evaluation { get; set; } = new();
 }

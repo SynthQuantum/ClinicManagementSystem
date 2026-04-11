@@ -8,4 +8,7 @@ public interface IPredictionService
     Task<NoShowPredictionOutput> PredictNoShowForAppointmentAsync(Guid appointmentId, bool persistResult = true);
     Task<NoShowDatasetGenerationResult> GenerateNoShowDatasetAsync(int rowCount = 1200, CancellationToken cancellationToken = default);
     Task<NoShowTrainingResult> TrainNoShowModelAsync(string? datasetPath = null, CancellationToken cancellationToken = default);
+    Task<NoShowModelEvaluationResult?> GetLatestNoShowModelMetricsAsync(CancellationToken cancellationToken = default);
+    Task<bool> TryLoadNoShowModelAsync(CancellationToken cancellationToken = default);
+    NoShowMlDataPoint MapInputToFeatureVector(NoShowPredictionInput input);
 }
