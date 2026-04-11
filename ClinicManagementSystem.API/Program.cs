@@ -17,6 +17,11 @@ var startupBehavior = builder.Configuration
     .GetSection(StartupBehaviorOptions.SectionName)
     .Get<StartupBehaviorOptions>() ?? new StartupBehaviorOptions();
 
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    startupBehavior.SeedIdentityData = true;
+}
+
 ValidateRequiredConfiguration(builder.Configuration, builder.Environment);
 
 var connectionString = builder.Configuration.GetConnectionString("ClinicDb");
@@ -66,6 +71,46 @@ if (!jwtSection.Exists())
 }
 
 var jwtKey = jwtSection["Key"];
+var jwtIssuer = jwtSection["Issuer"];
+var jwtAudience = jwtSection["Audience"];
+
+const string testingJwtKey = "integration-test-jwt-signing-key-32-characters-minimum";
+const string testingJwtIssuer = "ClinicManagementSystem";
+const string testingJwtAudience = "ClinicManagementSystemAPI";
+
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    jwtKey = testingJwtKey;
+    jwtIssuer = testingJwtIssuer;
+    jwtAudience = testingJwtAudience;
+}
+
+if (string.IsNullOrWhiteSpace(jwtKey))
+{
+    jwtKey = builder.Configuration["JWT_KEY"];
+}
+
+if (string.IsNullOrWhiteSpace(jwtIssuer))
+{
+    jwtIssuer = builder.Configuration["JWT_ISSUER"];
+}
+
+if (string.IsNullOrWhiteSpace(jwtAudience))
+{
+    jwtAudience = builder.Configuration["JWT_AUDIENCE"];
+}
+
+if (string.IsNullOrWhiteSpace(jwtKey) && builder.Environment.IsEnvironment("Testing"))
+{
+    // Test-only fallback so integration tests can bootstrap in isolated CI environments.
+    jwtKey = testingJwtKey;
+}
+
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    jwtIssuer ??= testingJwtIssuer;
+    jwtAudience ??= testingJwtAudience;
+}
 
 if (string.IsNullOrWhiteSpace(jwtKey))
 {
@@ -73,6 +118,13 @@ if (string.IsNullOrWhiteSpace(jwtKey))
         "Critical security configuration error: Jwt:Key is not configured. " +
         "Set JWT_KEY environment variable or use 'dotnet user-secrets set Jwt:Key <strong-key>' in Development. " +
         "Never commit JWT secrets to source control.");
+}
+
+if (string.IsNullOrWhiteSpace(jwtIssuer) || string.IsNullOrWhiteSpace(jwtAudience))
+{
+    throw new InvalidOperationException(
+        "Critical security configuration error: Jwt:Issuer and Jwt:Audience are required. " +
+        "Set Jwt:Issuer/Jwt:Audience or JWT_ISSUER/JWT_AUDIENCE.");
 }
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -84,8 +136,8 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateAudience = true,
             ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
-            ValidIssuer = jwtSection["Issuer"],
-            ValidAudience = jwtSection["Audience"],
+            ValidIssuer = jwtIssuer,
+            ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
         };
     });
