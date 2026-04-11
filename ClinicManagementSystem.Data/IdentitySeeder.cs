@@ -36,7 +36,8 @@ public static class IdentitySeeder
         }
 
         var canSeedByEnvironment = environment.IsDevelopment() || environment.IsEnvironment("Testing");
-        var forceSeedByConfig = configuration.GetValue<bool>("IdentitySeed:SeedAdmin");
+        var forceSeedByConfig = configuration.GetValue<bool>("Authentication:IdentitySeed:SeedAdmin")
+            || configuration.GetValue<bool>("IdentitySeed:SeedAdmin");
 
         if (!canSeedByEnvironment && !forceSeedByConfig)
         {
@@ -44,8 +45,10 @@ public static class IdentitySeeder
             return;
         }
 
-        var adminEmail = configuration["IdentitySeed:AdminEmail"];
-        var adminPassword = configuration["IdentitySeed:AdminPassword"];
+        var adminEmail = configuration["Authentication:IdentitySeed:AdminEmail"]
+            ?? configuration["IdentitySeed:AdminEmail"];
+        var adminPassword = configuration["Authentication:IdentitySeed:AdminPassword"]
+            ?? configuration["IdentitySeed:AdminPassword"];
 
         if (string.IsNullOrWhiteSpace(adminEmail) || string.IsNullOrWhiteSpace(adminPassword))
         {

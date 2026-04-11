@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This document explains how to deploy the current Clinic Management System implementation in a capstone-ready but practical way. It covers prerequisites, configuration, publish commands, and post-deploy checks.
+This document explains how to run and deploy the current Clinic Management System implementation with explicit environment configuration, migration controls, and seeding behavior.
 
 ## Current Deployment Model
 
@@ -13,12 +13,84 @@ The repository currently supports application deployment using dotnet publish ou
 
 Infrastructure-as-code templates and automated release pipelines are not yet included in this repository.
 
+## Configuration Model (Standardized Sections)
+
+Both API and Blazor appsettings now use the same core sections:
+
+- ConnectionStrings
+  - ClinicDb
+- Authentication
+  - Jwt (API)
+  - IdentitySeed
+- MlArtifacts
+  - NoShowArtifactsPath
+  - ModelFileName
+  - DatasetFileName
+  - MetricsFileName
+- NotificationReminders
+- PerformanceMonitoring
+- StartupBehavior
+
+Startup validates required values for:
+
+- ConnectionStrings:ClinicDb
+- MlArtifacts:NoShowArtifactsPath
+- NotificationReminders numeric thresholds
+- PerformanceMonitoring numeric thresholds
+- Authentication:Jwt:Key (API)
+
+## Local Development Run Steps
+
+1.  Ensure .NET SDK 10 and LocalDB are available.
+2.  Use Development environment.
+3.  Confirm Development appsettings have a valid ConnectionStrings:ClinicDb value.
+4.  From repository root:
+
+        dotnet restore
+        dotnet build ClinicManagementSystem.slnx -c Debug
+
+5.  Run API:
+
+        dotnet run --project ClinicManagementSystem.API --environment Development
+
+6.  Run Blazor:
+
+        dotnet run --project ClinicManagementSystem.Blazor --environment Development
+
+Development defaults are configured for simple local startup:
+
+- LocalDB connection string
+- StartupBehavior migration and seeding enabled
+- Development JWT key is present in API Development appsettings (development-only)
+
 ## Prerequisites
 
 - .NET SDK 10 on build agent or host
 - SQL Server instance accessible to both app hosts
 - HTTPS termination strategy (reverse proxy, App Service, or equivalent)
 - Secure runtime configuration for secrets
+
+## Environment Guidance
+
+### Development
+
+Recommended behavior:
+
+- ApplyMigrations: true
+- EnsureCreatedWhenNoMigrations: true
+- SeedDevelopmentData: true
+- SeedIdentityData: true
+- FailFastOnInitializationError: true
+
+### Production
+
+Recommended behavior:
+
+- ApplyMigrations: false (run migrations in a controlled deployment step)
+- EnsureCreatedWhenNoMigrations: false
+- SeedDevelopmentData: false
+- SeedIdentityData: false
+- FailFastOnInitializationError: true
 
 ## Configuration Checklist
 
@@ -33,10 +105,10 @@ Set ConnectionStrings:ClinicDb for both hosts:
 
 Required:
 
-- Jwt:Key
-- Jwt:Issuer
-- Jwt:Audience
-- Jwt:ExpiryMinutes
+- Authentication:Jwt:Key
+- Authentication:Jwt:Issuer
+- Authentication:Jwt:Audience
+- Authentication:Jwt:ExpiryMinutes
 
 Important:
 
@@ -47,9 +119,25 @@ Important:
 
 For controlled non-production bootstrap only:
 
-- IdentitySeed:SeedAdmin
-- IdentitySeed:AdminEmail
-- IdentitySeed:AdminPassword
+- Authentication:IdentitySeed:SeedAdmin
+- Authentication:IdentitySeed:AdminEmail
+- Authentication:IdentitySeed:AdminPassword
+
+## Migration Steps
+
+Use explicit migration commands instead of relying only on startup automation.
+
+Add a migration:
+
+    dotnet ef migrations add <MigrationName> --project ClinicManagementSystem.Data --startup-project ClinicManagementSystem.API
+
+Apply migrations for API startup project:
+
+    dotnet ef database update --project ClinicManagementSystem.Data --startup-project ClinicManagementSystem.API
+
+Apply migrations for Blazor startup project:
+
+    dotnet ef database update --project ClinicManagementSystem.Data --startup-project ClinicManagementSystem.Blazor
 
 ## Build and Publish
 
@@ -70,12 +158,15 @@ Deploy the generated output folders to your target runtime hosts.
 
 ## Startup Behavior in Hosted Environments
 
-At startup, each host performs environment-aware database initialization:
+At startup, each host performs configurable initialization controlled by StartupBehavior:
 
-- applies pending EF migrations when available for relational providers
-- falls back to EnsureCreated when no migrations are present
-- runs development data seeders
-- runs identity seeding according to environment/configuration rules
+- ApplyMigrations controls automatic migration execution
+- EnsureCreatedWhenNoMigrations controls EnsureCreated fallback
+- SeedDevelopmentData controls DevelopmentDataSeeder execution
+- SeedIdentityData controls IdentitySeeder execution
+- FailFastOnInitializationError controls whether startup stops on initialization failure
+
+Identity seeding behavior also respects environment safety checks and Authentication:IdentitySeed settings.
 
 ## Recommended Hosting Topology
 
@@ -95,7 +186,7 @@ At startup, each host performs environment-aware database initialization:
 
 After deployment, verify:
 
-1. API starts without Jwt:Key configuration errors.
+1. API starts without Authentication:Jwt:Key configuration errors.
 2. Blazor login page is reachable.
 3. POST /api/auth/login returns JWT for valid credentials.
 4. Role-restricted endpoints enforce expected authorization.
@@ -110,6 +201,14 @@ After deployment, verify:
 - Back up SQL data and validate restore procedures.
 - Restrict outbound/inbound network access by least privilege.
 - Add CI/CD deployment automation as a future enhancement.
+
+## Production Cautions
+
+- Do not keep development JWT values in production configuration.
+- Do not enable SeedDevelopmentData in production.
+- Do not enable SeedIdentityData unless explicitly intended for controlled bootstrap.
+- Keep ApplyMigrations false for production unless your release process explicitly approves auto-migration.
+- Keep connection strings and JWT key in secure environment configuration, not source-controlled files.
 
 ## Limitations
 

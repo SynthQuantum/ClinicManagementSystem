@@ -6,8 +6,10 @@ using ClinicManagementSystem.Models.DTOs;
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.Enums;
 using ClinicManagementSystem.Services.Interfaces;
+using ClinicManagementSystem.Services.Options;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.ML;
 using Microsoft.ML.Data;
 
@@ -21,6 +23,7 @@ public class PredictionService : IPredictionService
 
     private readonly ILogger<PredictionService> _logger;
     private readonly ClinicDbContext _db;
+    private readonly MlArtifactsOptions _mlArtifactsOptions;
 
     private static readonly object ModelSyncLock = new();
     private static ITransformer? _cachedModel;
@@ -30,9 +33,18 @@ public class PredictionService : IPredictionService
     private readonly MLContext _mlContext = new(seed: 20260321);
 
     public PredictionService(ILogger<PredictionService> logger, ClinicDbContext db)
+        : this(logger, db, Microsoft.Extensions.Options.Options.Create(new MlArtifactsOptions()))
+    {
+    }
+
+    public PredictionService(
+        ILogger<PredictionService> logger,
+        ClinicDbContext db,
+        IOptions<MlArtifactsOptions> mlArtifactsOptions)
     {
         _logger = logger;
         _db = db;
+        _mlArtifactsOptions = mlArtifactsOptions.Value ?? new MlArtifactsOptions();
     }
 
     public NoShowMlDataPoint MapInputToFeatureVector(NoShowPredictionInput input)
@@ -156,7 +168,7 @@ public class PredictionService : IPredictionService
 
         var artifactsDirectory = GetArtifactsDirectory();
         Directory.CreateDirectory(artifactsDirectory);
-        var datasetPath = Path.Combine(artifactsDirectory, "no_show_training_data.csv");
+        var datasetPath = Path.Combine(artifactsDirectory, _mlArtifactsOptions.DatasetFileName);
 
         await PersistDatasetCsvAsync(rows, datasetPath, cancellationToken);
 
@@ -262,7 +274,7 @@ public class PredictionService : IPredictionService
     {
         var artifactsDirectory = GetArtifactsDirectory();
         var resolvedDatasetPath = string.IsNullOrWhiteSpace(datasetPath)
-            ? Path.Combine(artifactsDirectory, "no_show_training_data.csv")
+            ? Path.Combine(artifactsDirectory, _mlArtifactsOptions.DatasetFileName)
             : datasetPath;
 
         if (!File.Exists(resolvedDatasetPath))
@@ -343,9 +355,9 @@ public class PredictionService : IPredictionService
         return mlContext.BinaryClassification.Evaluate(predictions, labelColumnName: "Label");
     }
 
-    private static string PersistModel(MLContext mlContext, ITransformer model, IDataView trainSet, string artifactsDirectory)
+    private string PersistModel(MLContext mlContext, ITransformer model, IDataView trainSet, string artifactsDirectory)
     {
-        var modelPath = Path.Combine(artifactsDirectory, "no_show_model.zip");
+        var modelPath = Path.Combine(artifactsDirectory, _mlArtifactsOptions.ModelFileName);
         mlContext.Model.Save(model, trainSet.Schema, modelPath);
         return modelPath;
     }
@@ -567,17 +579,23 @@ public class PredictionService : IPredictionService
 
     private string GetArtifactsDirectory()
     {
-        return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "ml-artifacts", "no-show"));
+        var configuredPath = _mlArtifactsOptions.NoShowArtifactsPath;
+        if (Path.IsPathRooted(configuredPath))
+        {
+            return configuredPath;
+        }
+
+        return Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", configuredPath));
     }
 
     private string GetMetricsPath()
     {
-        return Path.Combine(GetArtifactsDirectory(), "no_show_model_metrics.json");
+        return Path.Combine(GetArtifactsDirectory(), _mlArtifactsOptions.MetricsFileName);
     }
 
     private bool TryGetPredictionEngine(out PredictionEngine<NoShowMlDataPoint, NoShowMlPrediction>? predictionEngine)
     {
-        var modelPath = Path.Combine(GetArtifactsDirectory(), "no_show_model.zip");
+        var modelPath = Path.Combine(GetArtifactsDirectory(), _mlArtifactsOptions.ModelFileName);
         if (!File.Exists(modelPath))
         {
             predictionEngine = null;

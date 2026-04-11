@@ -13,6 +13,13 @@ using Microsoft.EntityFrameworkCore;
 using Radzen;
 
 var builder = WebApplication.CreateBuilder(args);
+var startupBehavior = builder.Configuration
+    .GetSection(StartupBehaviorOptions.SectionName)
+    .Get<StartupBehaviorOptions>() ?? new StartupBehaviorOptions();
+
+ValidateRequiredConfiguration(builder.Configuration);
+
+var connectionString = builder.Configuration.GetConnectionString("ClinicDb");
 
 if (builder.Environment.IsEnvironment("Development"))
 {
@@ -28,7 +35,7 @@ builder.Services.AddRadzenComponents();
 
 builder.Services.AddDbContext<ClinicDbContext>(options =>
     options.UseSqlServer(
-        builder.Configuration.GetConnectionString("ClinicDb"),
+        connectionString,
         sqlOptions => sqlOptions.EnableRetryOnFailure(
             maxRetryCount: 5,
             maxRetryDelay: TimeSpan.FromSeconds(10),
@@ -63,6 +70,8 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddClinicServices();
 builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
 builder.Services.Configure<PerformanceMonitoringOptions>(builder.Configuration.GetSection(PerformanceMonitoringOptions.SectionName));
+builder.Services.Configure<MlArtifactsOptions>(builder.Configuration.GetSection(MlArtifactsOptions.SectionName));
+builder.Services.Configure<StartupBehaviorOptions>(builder.Configuration.GetSection(StartupBehaviorOptions.SectionName));
 
 var app = builder.Build();
 
@@ -75,7 +84,9 @@ using (var scope = app.Services.CreateScope())
 
         if (db.Database.IsRelational())
         {
-            if (db.Database.GetMigrations().Any())
+            var hasMigrations = db.Database.GetMigrations().Any();
+
+            if (startupBehavior.ApplyMigrations && hasMigrations)
             {
                 if (db.Database.GetPendingMigrations().Any())
                 {
@@ -87,30 +98,56 @@ using (var scope = app.Services.CreateScope())
                     logger.LogInformation("No pending migrations.");
                 }
             }
-            else
+            else if (!hasMigrations && startupBehavior.EnsureCreatedWhenNoMigrations)
             {
                 db.Database.EnsureCreated();
                 logger.LogInformation("Database created with EnsureCreated (no migrations found).");
             }
+            else
+            {
+                logger.LogInformation("Relational startup initialization skipped. ApplyMigrations={ApplyMigrations}, EnsureCreatedWhenNoMigrations={EnsureCreatedWhenNoMigrations}, HasMigrations={HasMigrations}",
+                    startupBehavior.ApplyMigrations,
+                    startupBehavior.EnsureCreatedWhenNoMigrations,
+                    hasMigrations);
+            }
         }
-        else
+        else if (startupBehavior.EnsureCreatedWhenNoMigrations)
         {
             db.Database.EnsureCreated();
             logger.LogInformation("Database created with EnsureCreated for non-relational provider.");
         }
+        else
+        {
+            logger.LogInformation("EnsureCreated skipped for non-relational provider by StartupBehavior settings.");
+        }
 
-        await DevelopmentDataSeeder.SeedAsync(db, logger);
-        await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger, app.Configuration, app.Environment);
+        if (startupBehavior.SeedDevelopmentData)
+        {
+            await DevelopmentDataSeeder.SeedAsync(db, logger);
+        }
+        else
+        {
+            logger.LogInformation("DevelopmentDataSeeder skipped by StartupBehavior settings.");
+        }
+
+        if (startupBehavior.SeedIdentityData)
+        {
+            await IdentitySeeder.SeedAsync(scope.ServiceProvider, logger, app.Configuration, app.Environment);
+        }
+        else
+        {
+            logger.LogInformation("IdentitySeeder skipped by StartupBehavior settings.");
+        }
     }
     catch (Exception ex)
     {
         logger.LogError(ex, "Database migration failed during startup.");
-        if (app.Environment.IsDevelopment())
+        if (startupBehavior.FailFastOnInitializationError)
         {
             throw;
         }
 
-        logger.LogWarning("Continuing startup without applying migrations because environment is not Development.");
+        logger.LogWarning("Continuing startup because StartupBehavior:FailFastOnInitializationError is false.");
     }
 }
 
@@ -293,3 +330,36 @@ app.MapRazorComponents<App>()
     .WithStaticAssets();
 
 app.Run();
+
+static void ValidateRequiredConfiguration(IConfiguration configuration)
+{
+    if (string.IsNullOrWhiteSpace(configuration.GetConnectionString("ClinicDb")))
+    {
+        throw new InvalidOperationException("Configuration error: ConnectionStrings:ClinicDb is required.");
+    }
+
+    var mlOptions = configuration.GetSection(MlArtifactsOptions.SectionName).Get<MlArtifactsOptions>() ?? new MlArtifactsOptions();
+    if (string.IsNullOrWhiteSpace(mlOptions.NoShowArtifactsPath))
+    {
+        throw new InvalidOperationException("Configuration error: MlArtifacts:NoShowArtifactsPath is required.");
+    }
+
+    var notificationOptions = configuration.GetSection(NotificationReminderOptions.SectionName).Get<NotificationReminderOptions>() ?? new NotificationReminderOptions();
+    if (notificationOptions.FirstReminderHoursBefore <= 0
+        || notificationOptions.SecondReminderHoursBefore <= 0
+        || notificationOptions.ProcessingBatchSize <= 0
+        || notificationOptions.ProcessorIntervalSeconds <= 0)
+    {
+        throw new InvalidOperationException("Configuration error: NotificationReminders values must be greater than zero.");
+    }
+
+    var performanceOptions = configuration.GetSection(PerformanceMonitoringOptions.SectionName).Get<PerformanceMonitoringOptions>() ?? new PerformanceMonitoringOptions();
+    if (performanceOptions.FlushIntervalSeconds <= 0
+        || performanceOptions.MaxInMemorySamples <= 0
+        || performanceOptions.MaxSummarySamples <= 0
+        || performanceOptions.SlowEndpointCount <= 0
+        || performanceOptions.RecentFailedRequestCount <= 0)
+    {
+        throw new InvalidOperationException("Configuration error: PerformanceMonitoring values must be greater than zero.");
+    }
+}
