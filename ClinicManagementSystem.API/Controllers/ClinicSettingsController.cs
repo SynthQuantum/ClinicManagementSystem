@@ -1,11 +1,13 @@
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ClinicManagementSystem.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
 public class ClinicSettingsController : ControllerBase
 {
     private readonly IClinicSettingsService _service;
@@ -29,3 +31,4 @@ public class ClinicSettingsController : ControllerBase
         return Ok(updated);
     }
 }
+

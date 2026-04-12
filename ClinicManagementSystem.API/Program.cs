@@ -6,11 +6,14 @@ using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Services;
 using ClinicManagementSystem.Services.Options;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var startupBehavior = builder.Configuration
@@ -143,6 +146,52 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     });
 
 builder.Services.AddAuthorization();
+
+// ── CORS ─────────────────────────────────────────────────────────────────────
+// In Production or Staging, populate the AllowedCorsOrigins array in appsettings.json
+// to list the exact origins of your frontend(s). Never allow "*" for healthcare APIs.
+var allowedOrigins = builder.Configuration.GetSection("AllowedCorsOrigins").Get<string[]>() ?? [];
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("ClinicCorsPolicy", policy =>
+    {
+        if (builder.Environment.IsDevelopment() || builder.Environment.IsEnvironment("Testing"))
+        {
+            // Permissive in development so frontend tooling (hot reload, Swagger UI) works.
+            policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        }
+        else if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins).AllowAnyHeader().AllowAnyMethod().AllowCredentials();
+        }
+        else
+        {
+            // No origins configured for non-development: deny all cross-origin requests.
+            policy.WithOrigins(Array.Empty<string>());
+        }
+    });
+});
+
+// ── Rate limiting ─────────────────────────────────────────────────────────────
+// Protect the login endpoint against brute-force and credential-stuffing attacks.
+// The Identity lockout policy is the primary defence; rate limiting is a secondary
+// layer that kicks in before too many lockout events saturate the database.
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    // Authentication endpoints: fixed window — max 10 requests per minute per IP.
+    options.AddPolicy("auth-fixed-window", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0       // reject immediately when limit is hit
+            }));
+});
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddClinicServices();
 builder.Services.Configure<NotificationReminderOptions>(builder.Configuration.GetSection(NotificationReminderOptions.SectionName));
@@ -235,8 +284,25 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    // HSTS: instruct browsers to use HTTPS for all future visits.
+    // 30-day max-age is a safe starting point; increase to 1 year once stable.
+    // Do NOT set includeSubDomains/preload until all sub-domains support HTTPS.
+    app.UseHsts();
+}
+
+// Trust X-Forwarded-For / X-Forwarded-Proto from upstream reverse proxy.
+// Configure KnownProxies / KnownNetworks in production for security.
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
 
 app.UseHttpsRedirection();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+app.UseCors("ClinicCorsPolicy");
+app.UseRateLimiter();
 app.UseMiddleware<PerformanceMonitoringMiddleware>();
 app.UseAuthentication();
 app.UseMiddleware<RequestAuditLoggingMiddleware>();

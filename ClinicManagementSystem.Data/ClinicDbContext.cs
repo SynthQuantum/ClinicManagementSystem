@@ -43,7 +43,8 @@ public class ClinicDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Gu
         modelBuilder.Entity<Notification>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<PerformanceSample>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<PredictionResult>().HasQueryFilter(e => !e.IsDeleted);
-        modelBuilder.Entity<AuditLog>().HasQueryFilter(e => !e.IsDeleted);
+        // AuditLog intentionally has NO soft-delete filter: audit records must be immutable/append-only
+        // to satisfy tamper-resistance requirements (HIPAA, SOC 2). Never delete audit rows.
         modelBuilder.Entity<ClinicSettings>().HasQueryFilter(e => !e.IsDeleted);
 
         // AppUser — email unique index (IdentityDbContext also enforces this, but explicit is fine)
@@ -125,6 +126,9 @@ public class ClinicDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Gu
 
         modelBuilder.Entity<AuditLog>()
             .HasIndex(a => new { a.EntityName, a.CreatedAt });
+
+        modelBuilder.Entity<AuditLog>()
+            .HasIndex(a => new { a.PerformedByUserId, a.CreatedAt });
 
         modelBuilder.Entity<ClinicSettings>()
             .HasIndex(s => s.ClinicName);
