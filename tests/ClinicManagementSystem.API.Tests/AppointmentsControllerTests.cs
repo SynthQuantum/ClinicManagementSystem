@@ -390,8 +390,12 @@ public class AppointmentsControllerTests
 
     private sealed class FakeAuditLogService : IAuditLogService
     {
-        public Task<IEnumerable<AuditLog>> GetAllAsync() => Task.FromResult(Enumerable.Empty<AuditLog>());
+        public Task<IEnumerable<AuditLog>> GetAllAsync(int take = 500) => Task.FromResult(Enumerable.Empty<AuditLog>());
         public Task<AuditLog?> GetByIdAsync(Guid id) => Task.FromResult<AuditLog?>(null);
         public Task<AuditLog> CreateAsync(AuditLog log) => Task.FromResult(log);
+        public Task<IEnumerable<AuditLog>> GetByUserAsync(Guid userId, int take = 200) => Task.FromResult(Enumerable.Empty<AuditLog>());
+        public Task<IEnumerable<AuditLog>> GetByEntityAsync(string entityName, Guid? entityId = null, int take = 200) => Task.FromResult(Enumerable.Empty<AuditLog>());
+        public Task<IEnumerable<AuditLog>> GetByDateRangeAsync(DateTime from, DateTime to, int maxResults = 500) => Task.FromResult(Enumerable.Empty<AuditLog>());
+        public Task<IEnumerable<AuditLog>> GetSecurityEventsAsync(int take = 100) => Task.FromResult(Enumerable.Empty<AuditLog>());
     }
 }

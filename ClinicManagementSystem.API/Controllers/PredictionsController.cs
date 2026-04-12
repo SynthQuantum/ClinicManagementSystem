@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using ClinicManagementSystem.API.Extensions;
 using ClinicManagementSystem.Models.Entities;
 using ClinicManagementSystem.Models.DTOs;
 using ClinicManagementSystem.Services.Interfaces;
@@ -94,6 +95,11 @@ public class PredictionsController : ControllerBase
             ActionType = actionType,
             EntityId = entityId,
             PerformedByUserId = userId == Guid.Empty ? null : userId,
+            UserRole = User.FindFirstValue(ClaimTypes.Role),
+            IpAddress = HttpContext.GetClientIpAddress(),
+            HttpMethod = HttpContext.Request.Method,
+            RequestPath = HttpContext.Request.Path.Value,
+            Outcome = "Success",
             Description = description
         });
     }
