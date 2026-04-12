@@ -6,6 +6,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading;
 
 namespace ClinicManagementSystem.API.IntegrationTests;
 
@@ -14,6 +15,8 @@ public class ApiEndpointsTests : IClassFixture<ApiWebApplicationFactory>
     private readonly ApiWebApplicationFactory _factory;
     private readonly HttpClient _client;
     private bool _authenticated;
+    private static string? _cachedBearerToken;
+    private static readonly SemaphoreSlim AuthenticationLock = new(1, 1);
 
     public ApiEndpointsTests(ApiWebApplicationFactory factory)
     {
@@ -26,20 +29,43 @@ public class ApiEndpointsTests : IClassFixture<ApiWebApplicationFactory>
         if (_authenticated)
             return;
 
-        var response = await _client.PostAsJsonAsync("/api/auth/login", new
+        if (!string.IsNullOrWhiteSpace(_cachedBearerToken))
         {
-            email = "admin.test@clinic.local",
-            password = "AdminTest@12345!"
-        });
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _cachedBearerToken);
+            _authenticated = true;
+            return;
+        }
 
-        response.EnsureSuccessStatusCode();
+        await AuthenticationLock.WaitAsync();
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(_cachedBearerToken))
+            {
+                _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _cachedBearerToken);
+                _authenticated = true;
+                return;
+            }
 
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var token = doc.RootElement.GetProperty("token").GetString();
+            var response = await _client.PostAsJsonAsync("/api/auth/login", new
+            {
+                email = "admin.test@clinic.local",
+                password = "AdminTest@12345!"
+            });
 
-        token.Should().NotBeNullOrWhiteSpace();
-        _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        _authenticated = true;
+            response.EnsureSuccessStatusCode();
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var token = doc.RootElement.GetProperty("token").GetString();
+
+            token.Should().NotBeNullOrWhiteSpace();
+            _cachedBearerToken = token;
+            _client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            _authenticated = true;
+        }
+        finally
+        {
+            AuthenticationLock.Release();
+        }
     }
 
     // -----------------------------------------------------------------------
