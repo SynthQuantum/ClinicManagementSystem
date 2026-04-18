@@ -172,17 +172,19 @@ app.MapPost("/account/login", async (
     [FromForm] string password,
     [FromForm] string? returnUrl) =>
 {
-    var user = await userManager.FindByEmailAsync(email);
+    var normalizedEmail = email.Trim();
+
+    var user = await userManager.FindByEmailAsync(normalizedEmail);
     if (user is null || !user.IsActive)
     {
         await auditLogService.CreateAsync(new AuditLog
         {
             EntityName = "Authentication",
             ActionType = "LoginFailed",
-            Description = $"Blazor login failed for '{email}' (user missing/inactive)"
+            Description = $"Blazor login failed for '{normalizedEmail}' (user missing/inactive)"
         });
 
-        return Results.LocalRedirect($"/login?error=1&returnUrl={Uri.EscapeDataString(returnUrl ?? "/")}");
+        return Results.LocalRedirect($"/login?error=1&email={Uri.EscapeDataString(normalizedEmail)}&returnUrl={Uri.EscapeDataString(returnUrl ?? "/")}");
     }
 
     var result = await signInManager.PasswordSignInAsync(user.UserName!, password, isPersistent: true, lockoutOnFailure: true);
@@ -195,11 +197,11 @@ app.MapPost("/account/login", async (
             ActionType = result.IsLockedOut ? "AccountLockedOut" : "LoginFailed",
             PerformedByUserId = user.Id,
             Description = result.IsLockedOut
-                ? $"Blazor account locked for '{email}'"
-                : $"Blazor login failed for '{email}' (bad credentials)"
+                ? $"Blazor account locked for '{normalizedEmail}'"
+                : $"Blazor login failed for '{normalizedEmail}' (bad credentials)"
         });
 
-        return Results.LocalRedirect($"/login?error=1&returnUrl={Uri.EscapeDataString(returnUrl ?? "/")}");
+        return Results.LocalRedirect($"/login?error=1&email={Uri.EscapeDataString(normalizedEmail)}&returnUrl={Uri.EscapeDataString(returnUrl ?? "/")}");
     }
 
     var roles = await userManager.GetRolesAsync(user);
@@ -209,7 +211,7 @@ app.MapPost("/account/login", async (
         EntityName = "Authentication",
         ActionType = "LoginSuccess",
         PerformedByUserId = user.Id,
-        Description = $"Blazor login success for '{email}'"
+        Description = $"Blazor login success for '{normalizedEmail}'"
     });
 
     var destination = !string.IsNullOrWhiteSpace(returnUrl) && !string.Equals(returnUrl, "/", StringComparison.Ordinal)
