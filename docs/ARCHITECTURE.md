@@ -18,17 +18,72 @@ Clinic Management System is a modular monorepo with two application hosts sharin
 
 ```mermaid
 flowchart LR
-        U[Clinic User] --> B[Blazor Server UI]
-        U --> A[REST API Client]
-        B --> S[Service Layer]
-        A --> S
-        S --> D[EF Core ClinicDbContext]
-        D --> Q[(SQL Server)]
-        S --> M[ML.NET Pipeline]
-        M --> R[Local Artifacts: ml-artifacts/no-show]
-        A --> X[Auth Endpoints]
-        X --> I[ASP.NET Core Identity]
-        I --> Q
+  U[Clinic User: Admin, Doctor, Receptionist]
+
+  subgraph Hosts[Application Hosts]
+    B[Blazor Server UI\nClinicManagementSystem.Blazor]
+    A[REST API\nClinicManagementSystem.API]
+  end
+
+  subgraph Core[Shared Application Core]
+    S[Service Layer\nClinicManagementSystem.Services]
+    D[Persistence Layer\nClinicManagementSystem.Data\nEF Core ClinicDbContext]
+    K[Contracts + Entities\nClinicManagementSystem.Models]
+  end
+
+  subgraph Platform[Platform Dependencies]
+    Q[(Azure SQL / SQL Server)]
+    M[Prediction Pipeline]
+    R[ML Artifacts\nml-artifacts/no-show]
+    I[ASP.NET Core Identity]
+  end
+
+  U --> B
+  U --> A
+
+  B --> S
+  A --> S
+
+  S --> D
+  D --> K
+  A --> K
+  B --> K
+
+  D --> Q
+  A --> I
+  I --> Q
+
+  S --> M
+  M --> R
+```
+
+## Azure Deployment View
+
+```mermaid
+flowchart TB
+  User[Browser User]
+
+  subgraph Azure[Azure Subscription]
+    AppService[App Service\nClinicManagmentProd]
+    AppInsights[Application Insights\nClinicManagmentProd]
+    Redis[(Azure Cache for Redis)]
+
+    subgraph DataPlane[Data Plane]
+      SqlServer[Azure SQL Server\nclinicmanagmentprod-server]
+      SqlDb[(Azure SQL Database\nclinicmanagmentprod-db)]
+      PrivateEndpoint[Private Endpoint]
+      PrivateDns[Private DNS Zone\nprivatelink.database.windows.net]
+    end
+  end
+
+  User -->|HTTPS| AppService
+  AppService -->|Telemetry| AppInsights
+  AppService -->|Caching| Redis
+  AppService -->|TDS| SqlDb
+
+  SqlServer --> SqlDb
+  PrivateEndpoint --> SqlServer
+  PrivateDns --> PrivateEndpoint
 ```
 
 ## Layer Responsibilities

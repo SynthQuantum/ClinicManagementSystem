@@ -56,7 +56,9 @@ public static class IdentitySeeder
             return;
         }
 
-        if (await userManager.FindByEmailAsync(adminEmail) is null)
+        var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
+
+        if (existingAdmin is null)
         {
             var admin = new AppUser
             {
@@ -84,6 +86,44 @@ public static class IdentitySeeder
                 logger.LogWarning("Identity: failed to seed admin user: {Errors}",
                     string.Join(", ", createResult.Errors.Select(e => e.Description)));
             }
+
+            return;
+        }
+
+        // Keep configured admin credentials usable in non-dev environments where force seeding is enabled.
+        var isPasswordValid = await userManager.CheckPasswordAsync(existingAdmin, adminPassword);
+        if (!isPasswordValid)
+        {
+            var removeResult = await userManager.RemovePasswordAsync(existingAdmin);
+            if (!removeResult.Succeeded)
+            {
+                logger.LogWarning("Identity: failed to remove existing admin password for '{Email}': {Errors}",
+                    adminEmail, string.Join(", ", removeResult.Errors.Select(e => e.Description)));
+            }
+
+            var addResult = await userManager.AddPasswordAsync(existingAdmin, adminPassword);
+            if (addResult.Succeeded)
+            {
+                logger.LogInformation("Identity: reset password for configured admin user '{Email}'", adminEmail);
+            }
+            else
+            {
+                logger.LogWarning("Identity: failed to reset admin password for '{Email}': {Errors}",
+                    adminEmail, string.Join(", ", addResult.Errors.Select(e => e.Description)));
+            }
+        }
+
+        if (await userManager.IsLockedOutAsync(existingAdmin))
+        {
+            await userManager.SetLockoutEndDateAsync(existingAdmin, null);
+            await userManager.ResetAccessFailedCountAsync(existingAdmin);
+            logger.LogInformation("Identity: unlocked configured admin user '{Email}'", adminEmail);
+        }
+
+        if (!await userManager.IsInRoleAsync(existingAdmin, "Admin"))
+        {
+            await userManager.AddToRoleAsync(existingAdmin, "Admin");
+            logger.LogInformation("Identity: ensured configured admin user '{Email}' is in role 'Admin'", adminEmail);
         }
     }
 }
