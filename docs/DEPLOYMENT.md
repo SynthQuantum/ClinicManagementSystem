@@ -215,3 +215,13 @@ After deployment, verify:
 - This deployment guide targets capstone and educational hosting scenarios.
 - No production-certified healthcare compliance pack is included.
 - Notification provider integrations remain development-safe logging adapters.
+
+## Distributed Scaling Documentation
+
+For step-by-step guidance to make the system distributed and ready for scale, use:
+
+- SCALING_OVERVIEW.md
+- SCALING_PHASE_1_FOUNDATION.md
+- SCALING_PHASE_2_DISTRIBUTED_RUNTIME.md
+- SCALING_PHASE_3_OPERATIONS_AND_DR.md
+- SCALING_TOOLS_REFERENCE.md
