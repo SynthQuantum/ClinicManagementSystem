@@ -6,6 +6,14 @@ Clinic Management System is a .NET 10 capstone application for outpatient clinic
 
 The repository now documents and demonstrates a complete capstone narrative: role-based workflows, auditable operations, scheduling safeguards, dashboard insights, and local AI-assisted no-show risk scoring.
 
+## Navigation
+
+- Architecture: docs/ARCHITECTURE.md
+- Deployment: docs/DEPLOYMENT.md
+- Testing: docs/TESTING.md
+- Security: docs/SECURITY.md
+- React CRUD frontend: ClinicManagementSystem.React/README.md
+
 ## Business Problem
 
 Small and medium clinics often struggle with fragmented workflows:
@@ -29,6 +37,7 @@ Core solution projects:
 
 - ClinicManagementSystem.API: authenticated REST API layer
 - ClinicManagementSystem.Blazor: server-rendered web UI with role-aware pages
+- ClinicManagementSystem.React: React + Vite CRUD frontend for patient/staff admin flows
 - ClinicManagementSystem.Services: business logic and ML orchestration
 - ClinicManagementSystem.Data: EF Core DbContext, identity integration, and seeding
 - ClinicManagementSystem.Models: entities, enums, and DTO contracts
@@ -98,7 +107,9 @@ See docs/ARCHITECTURE.md for full details.
 | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | Auth              | POST /api/auth/login, POST /api/auth/logout                                                                                                                                                                       | JWT login plus authenticated logout       |
 | Patients          | GET /api/Patients, GET /api/Patients/{id}, POST /api/Patients, PUT /api/Patients/{id}, DELETE /api/Patients/{id}                                                                                                  | Query search supported on list            |
+| Patients Query    | GET /api/Patients/query?page=1&pageSize=20&sortBy=lastName&sortDir=asc&q=<term>                                                                                                                                   | Server-side paging and sorting            |
 | StaffMembers      | GET /api/StaffMembers, GET /api/StaffMembers/{id}, POST /api/StaffMembers, PUT /api/StaffMembers/{id}, DELETE /api/StaffMembers/{id}                                                                              | Admin restricted                          |
+| Staff Query       | GET /api/StaffMembers/query?page=1&pageSize=20&sortBy=lastName&sortDir=asc                                                                                                                                        | Server-side paging and sorting            |
 | Appointments      | GET /api/Appointments, GET /api/Appointments/{id}, POST /api/Appointments, PUT /api/Appointments/{id}, PATCH /api/Appointments/{id}/status, DELETE /api/Appointments/{id}                                         | Supports date, patient, and staff filters |
 | Dashboard         | GET /api/Dashboard/summary, GET /api/Dashboard/trend, GET /api/Dashboard/staff-workload                                                                                                                           | Admin and Doctor roles                    |
 | Predictions       | POST /api/Predictions/no-show, POST /api/Predictions/no-show/appointment/{appointmentId}, POST /api/Predictions/no-show/dataset, POST /api/Predictions/no-show/train, GET /api/Predictions/no-show/metrics/latest | Local ML.NET workflow                     |
@@ -207,6 +218,12 @@ API:
 Blazor:
 
     dotnet run --project ClinicManagementSystem.Blazor
+
+React:
+
+cd ClinicManagementSystem.React
+npm install
+npm run dev
 
 ## Testing Instructions
 

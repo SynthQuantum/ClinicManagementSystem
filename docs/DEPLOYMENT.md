@@ -11,6 +11,10 @@ The repository currently supports application deployment using dotnet publish ou
 - ClinicManagementSystem.API
 - ClinicManagementSystem.Blazor
 
+It also includes a React frontend project for CRUD administration:
+
+- ClinicManagementSystem.React
+
 Infrastructure-as-code templates and automated release pipelines are not yet included in this repository.
 
 ## Configuration Model (Standardized Sections)
@@ -56,6 +60,12 @@ Startup validates required values for:
 6.  Run Blazor:
 
         dotnet run --project ClinicManagementSystem.Blazor --environment Development
+
+7.  Run React frontend:
+
+cd ClinicManagementSystem.React
+npm install
+npm run dev
 
 Development defaults are configured for simple local startup:
 
@@ -225,3 +235,10 @@ For step-by-step guidance to make the system distributed and ready for scale, us
 - SCALING_PHASE_2_DISTRIBUTED_RUNTIME.md
 - SCALING_PHASE_3_OPERATIONS_AND_DR.md
 - SCALING_TOOLS_REFERENCE.md
+
+## React Frontend Notes
+
+- React project documentation: ../ClinicManagementSystem.React/README.md
+- React UI calls the API host directly and requires valid JWT login.
+- In Development, API CORS policy is permissive.
+- In Production, set AllowedCorsOrigins explicitly to the React host origin.

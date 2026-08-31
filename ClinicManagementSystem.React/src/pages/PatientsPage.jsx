@@ -1,28 +1,43 @@
 import { useEffect, useState } from "react";
-import { apiRequest } from "../api/client";
+import { apiRequest, queryCollection } from "../api/client";
 import PatientsForm from "../components/PatientsForm";
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState([]);
   const [selected, setSelected] = useState(null);
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState("lastName");
+  const [sortDir, setSortDir] = useState("asc");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
-  async function loadPatients(search = "") {
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  async function loadPatients(search = q, nextPage = page) {
     try {
-      const query = search ? `?q=${encodeURIComponent(search)}` : "";
-      const data = await apiRequest(`/api/patients${query}`);
-      setPatients(data);
-      setStatus(`Loaded ${data.length} patient records.`);
+      const data = await queryCollection("/api/patients/query", {
+        q: search,
+        page: nextPage,
+        pageSize,
+        sortBy,
+        sortDir
+      });
+
+      setPatients(data.items || []);
+      setTotalCount(data.totalCount || 0);
+      setPage(data.page || nextPage);
+      setStatus(`Loaded ${(data.items || []).length} of ${data.totalCount || 0} patient records.`);
     } catch (error) {
       setStatus(`Failed to load patients: ${error.message}`);
     }
   }
 
   useEffect(() => {
-    loadPatients();
-  }, []);
+    loadPatients(q, page);
+  }, [pageSize, sortBy, sortDir]);
 
   async function handleSave(payload) {
     setBusy(true);
@@ -42,7 +57,7 @@ export default function PatientsPage() {
       }
 
       setSelected(null);
-      await loadPatients(q);
+      await loadPatients(q, page);
     } catch (error) {
       setStatus(`Save failed: ${error.message}`);
     } finally {
@@ -61,7 +76,8 @@ export default function PatientsPage() {
       if (selected?.id === id) {
         setSelected(null);
       }
-      await loadPatients(q);
+      const fallbackPage = patients.length === 1 && page > 1 ? page - 1 : page;
+      await loadPatients(q, fallbackPage);
     } catch (error) {
       setStatus(`Delete failed: ${error.message}`);
     }
@@ -73,12 +89,37 @@ export default function PatientsPage() {
         <h2>Patients</h2>
         <div className="inline-row">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by text" />
-          <button type="button" onClick={() => loadPatients(q)}>
+          <button type="button" onClick={() => { setPage(1); loadPatients(q, 1); }}>
             Search
           </button>
-          <button type="button" className="muted" onClick={() => { setQ(""); loadPatients(""); }}>
+          <button type="button" className="muted" onClick={() => { setQ(""); setPage(1); loadPatients("", 1); }}>
             Reset
           </button>
+        </div>
+
+        <div className="inline-row">
+          <label htmlFor="patientsSortBy">Sort by</label>
+          <select id="patientsSortBy" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="lastName">Last Name</option>
+            <option value="firstName">First Name</option>
+            <option value="dateOfBirth">Date of Birth</option>
+            <option value="email">Email</option>
+            <option value="createdAt">Created At</option>
+          </select>
+
+          <label htmlFor="patientsSortDir">Direction</label>
+          <select id="patientsSortDir" value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+
+          <label htmlFor="patientsPageSize">Page size</label>
+          <select id="patientsPageSize" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
         </div>
 
         <div className="table-wrap">
@@ -107,6 +148,16 @@ export default function PatientsPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="inline-row">
+          <button type="button" className="muted" disabled={page <= 1} onClick={() => { const p = page - 1; setPage(p); loadPatients(q, p); }}>
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button type="button" className="muted" disabled={page >= totalPages} onClick={() => { const p = page + 1; setPage(p); loadPatients(q, p); }}>
+            Next
+          </button>
         </div>
 
         <p className="status">{status}</p>

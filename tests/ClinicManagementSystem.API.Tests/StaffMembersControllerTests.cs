@@ -216,6 +216,8 @@ public class StaffMembersControllerTests
         public bool DeleteResult { get; set; } = true;
 
         public Task<IEnumerable<StaffMember>> GetAllAsync() => Task.FromResult(All);
+        public Task<(IEnumerable<StaffMember> Items, int TotalCount)> QueryAsync(int page, int pageSize, string? sortBy, bool sortDescending)
+            => Task.FromResult((All, All.Count()));
         public Task<StaffMember?> GetByIdAsync(Guid id) => Task.FromResult(ById);
         public Task<StaffMember> CreateAsync(StaffMember staff) => Task.FromResult(staff);
         public Task<StaffMember> UpdateAsync(StaffMember staff) => Task.FromResult(staff);

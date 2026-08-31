@@ -240,6 +240,9 @@ public class PatientsControllerTests
             return Task.FromResult(AllPatients);
         }
 
+        public Task<(IEnumerable<Patient> Items, int TotalCount)> QueryAsync(string? searchTerm, int page, int pageSize, string? sortBy, bool sortDescending)
+            => Task.FromResult((string.IsNullOrWhiteSpace(searchTerm) ? AllPatients : SearchResults, (string.IsNullOrWhiteSpace(searchTerm) ? AllPatients : SearchResults).Count()));
+
         public Task<IEnumerable<Patient>> SearchAsync(string searchTerm)
         {
             SearchCalls++;

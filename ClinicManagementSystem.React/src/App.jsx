@@ -1,5 +1,6 @@
 import { NavLink, Navigate, Route, Routes } from "react-router-dom";
 import AuthPanel from "./components/AuthPanel";
+import HomePage from "./pages/HomePage";
 import PatientsPage from "./pages/PatientsPage";
 import StaffPage from "./pages/StaffPage";
 
@@ -14,6 +15,9 @@ export default function App() {
       <AuthPanel />
 
       <nav className="tabs" aria-label="Data sections">
+        <NavLink to="/" end className={({ isActive }) => (isActive ? "tab active" : "tab")}>
+          Home
+        </NavLink>
         <NavLink to="/patients" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
           Patients
         </NavLink>
@@ -24,9 +28,10 @@ export default function App() {
 
       <main>
         <Routes>
+          <Route path="/" element={<HomePage />} />
           <Route path="/patients" element={<PatientsPage />} />
           <Route path="/staff" element={<StaffPage />} />
-          <Route path="*" element={<Navigate to="/patients" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>

@@ -10,6 +10,7 @@ Clinic Management System is a modular monorepo with two application hosts sharin
 
 - API host: ClinicManagementSystem.API
 - UI host: ClinicManagementSystem.Blazor
+- UI host: ClinicManagementSystem.React
 - Shared service layer: ClinicManagementSystem.Services
 - Shared persistence layer: ClinicManagementSystem.Data
 - Shared contracts and entities: ClinicManagementSystem.Models
@@ -22,6 +23,7 @@ flowchart LR
 
   subgraph Hosts[Application Hosts]
     B[Blazor Server UI\nClinicManagementSystem.Blazor]
+    R[React UI\nClinicManagementSystem.React]
     A[REST API\nClinicManagementSystem.API]
   end
 
@@ -39,9 +41,11 @@ flowchart LR
   end
 
   U --> B
+  U --> R
   U --> A
 
   B --> S
+  R --> A
   A --> S
 
   S --> D

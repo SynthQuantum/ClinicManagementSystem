@@ -66,3 +66,16 @@ export async function login(email, password) {
     body: JSON.stringify({ email, password })
   });
 }
+
+export async function queryCollection(path, query) {
+  const params = new URLSearchParams();
+
+  Object.entries(query).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== "") {
+      params.set(key, String(value));
+    }
+  });
+
+  const suffix = params.toString() ? `?${params.toString()}` : "";
+  return apiRequest(`${path}${suffix}`);
+}

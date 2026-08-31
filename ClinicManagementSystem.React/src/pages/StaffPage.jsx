@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { apiRequest } from "../api/client";
+import { apiRequest, queryCollection } from "../api/client";
 import StaffForm from "../components/StaffForm";
 
 const roleNames = ["Admin", "Doctor", "Nurse", "Receptionist", "Patient"];
@@ -7,22 +7,37 @@ const roleNames = ["Admin", "Doctor", "Nurse", "Receptionist", "Patient"];
 export default function StaffPage() {
   const [staff, setStaff] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalCount, setTotalCount] = useState(0);
+  const [sortBy, setSortBy] = useState("lastName");
+  const [sortDir, setSortDir] = useState("asc");
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
 
-  async function loadStaff() {
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+
+  async function loadStaff(nextPage = page) {
     try {
-      const data = await apiRequest("/api/staffmembers");
-      setStaff(data);
-      setStatus(`Loaded ${data.length} staff records.`);
+      const data = await queryCollection("/api/staffmembers/query", {
+        page: nextPage,
+        pageSize,
+        sortBy,
+        sortDir
+      });
+
+      setStaff(data.items || []);
+      setTotalCount(data.totalCount || 0);
+      setPage(data.page || nextPage);
+      setStatus(`Loaded ${(data.items || []).length} of ${data.totalCount || 0} staff records.`);
     } catch (error) {
       setStatus(`Failed to load staff: ${error.message}`);
     }
   }
 
   useEffect(() => {
-    loadStaff();
-  }, []);
+    loadStaff(page);
+  }, [pageSize, sortBy, sortDir]);
 
   async function handleSave(payload) {
     setBusy(true);
@@ -42,7 +57,7 @@ export default function StaffPage() {
       }
 
       setSelected(null);
-      await loadStaff();
+      await loadStaff(page);
     } catch (error) {
       setStatus(`Save failed: ${error.message}`);
     } finally {
@@ -61,7 +76,8 @@ export default function StaffPage() {
       if (selected?.id === id) {
         setSelected(null);
       }
-      await loadStaff();
+      const fallbackPage = staff.length === 1 && page > 1 ? page - 1 : page;
+      await loadStaff(fallbackPage);
     } catch (error) {
       setStatus(`Delete failed: ${error.message}`);
     }
@@ -71,6 +87,31 @@ export default function StaffPage() {
     <section className="page-grid">
       <article className="card">
         <h2>Staff</h2>
+        <div className="inline-row">
+          <label htmlFor="staffSortBy">Sort by</label>
+          <select id="staffSortBy" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+            <option value="lastName">Last Name</option>
+            <option value="firstName">First Name</option>
+            <option value="email">Email</option>
+            <option value="role">Role</option>
+            <option value="isAvailable">Availability</option>
+          </select>
+
+          <label htmlFor="staffSortDir">Direction</label>
+          <select id="staffSortDir" value={sortDir} onChange={(e) => setSortDir(e.target.value)}>
+            <option value="asc">Ascending</option>
+            <option value="desc">Descending</option>
+          </select>
+
+          <label htmlFor="staffPageSize">Page size</label>
+          <select id="staffPageSize" value={pageSize} onChange={(e) => { setPage(1); setPageSize(Number(e.target.value)); }}>
+            <option value={5}>5</option>
+            <option value={10}>10</option>
+            <option value={20}>20</option>
+            <option value={50}>50</option>
+          </select>
+        </div>
+
         <div className="table-wrap">
           <table>
             <thead>
@@ -97,6 +138,16 @@ export default function StaffPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="inline-row">
+          <button type="button" className="muted" disabled={page <= 1} onClick={() => { const p = page - 1; setPage(p); loadStaff(p); }}>
+            Previous
+          </button>
+          <span>Page {page} of {totalPages}</span>
+          <button type="button" className="muted" disabled={page >= totalPages} onClick={() => { const p = page + 1; setPage(p); loadStaff(p); }}>
+            Next
+          </button>
         </div>
 
         <p className="status">{status}</p>
