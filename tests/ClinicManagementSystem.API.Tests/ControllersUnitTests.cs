@@ -71,6 +71,8 @@ public class ControllersUnitTests
 
         public Task<Patient> CreateAsync(Patient patient) => Task.FromResult(patient);
         public Task<bool> DeleteAsync(Guid id) => Task.FromResult(true);
+        public Task<(IEnumerable<Patient> Items, int TotalCount)> QueryAsync(string? searchTerm, int page, int pageSize, string? sortBy, bool sortDescending)
+            => Task.FromResult((SearchResults, SearchResults.Count()));
         public Task<IEnumerable<Patient>> GetAllAsync()
         {
             GetAllInvocations++;

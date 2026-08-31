@@ -6,6 +6,7 @@
 @inject IAppointmentService AppointmentService
 @inject INotificationService NotificationService
 @inject NavigationManager Nav
+@inject IConfiguration Configuration
 @inject ILogger<Home> Logger
 @using ClinicManagementSystem.Models.DTOs
 @using ClinicManagementSystem.Models.Entities
@@ -17,6 +18,31 @@
 <RadzenStack Gap="1rem">
 
     <RadzenText TextStyle="TextStyle.H4">Dashboard</RadzenText>
+
+    <RadzenCard>
+        <RadzenStack Gap="0.75rem">
+            <RadzenText TextStyle="TextStyle.H6">Quick Access</RadzenText>
+            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem" Wrap="FlexWrap.Wrap">
+                <RadzenButton Text="Blazor Patients" Icon="people" ButtonStyle="ButtonStyle.Light"
+                              Click="@(() => Nav.NavigateTo("/patients"))" />
+                <RadzenButton Text="Blazor Staff" Icon="badge" ButtonStyle="ButtonStyle.Light"
+                              Click="@(() => Nav.NavigateTo("/staff"))" />
+                <RadzenButton Text="React Patients CRUD" Icon="open_in_new" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@string.IsNullOrWhiteSpace(_reactAdminBaseUrl)"
+                              Click="@(() => OpenReactPage("/patients"))" />
+                <RadzenButton Text="React Staff CRUD" Icon="open_in_new" ButtonStyle="ButtonStyle.Primary"
+                              Disabled="@string.IsNullOrWhiteSpace(_reactAdminBaseUrl)"
+                              Click="@(() => OpenReactPage("/staff"))" />
+            </RadzenStack>
+
+            @if (string.IsNullOrWhiteSpace(_reactAdminBaseUrl))
+            {
+                <RadzenAlert AlertStyle="AlertStyle.Info" ShowIcon="true">
+                    Configure ReactAdmin:BaseUrl in Blazor appsettings to enable React CRUD links.
+                </RadzenAlert>
+            }
+        </RadzenStack>
+    </RadzenCard>
 
     @if (_loading)
     {
@@ -248,10 +274,22 @@
     private List<Appointment> _highRiskAppointments = [];
     private bool _loading = true;
     private string? _error;
+    private string? _reactAdminBaseUrl;
 
     protected override async Task OnInitializedAsync()
     {
+        _reactAdminBaseUrl = Configuration["ReactAdmin:BaseUrl"]?.TrimEnd('/');
         await LoadDashboard();
+    }
+
+    private void OpenReactPage(string path)
+    {
+        if (string.IsNullOrWhiteSpace(_reactAdminBaseUrl))
+        {
+            return;
+        }
+
+        Nav.NavigateTo($"{_reactAdminBaseUrl}{path}", forceLoad: true);
     }
 
     private async Task LoadDashboard()

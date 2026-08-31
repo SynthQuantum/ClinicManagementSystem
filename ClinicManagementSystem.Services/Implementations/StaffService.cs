@@ -23,6 +23,26 @@ public class StaffService : IStaffService
         return await _db.StaffMembers.AsNoTracking().OrderBy(s => s.LastName).ToListAsync();
     }
 
+    public async Task<(IEnumerable<StaffMember> Items, int TotalCount)> QueryAsync(
+        int page,
+        int pageSize,
+        string? sortBy,
+        bool sortDescending)
+    {
+        var safePage = Math.Max(1, page);
+        var safePageSize = Math.Clamp(pageSize, 1, 200);
+
+        var query = ApplySorting(_db.StaffMembers.AsNoTracking(), sortBy, sortDescending);
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .Skip((safePage - 1) * safePageSize)
+            .Take(safePageSize)
+            .ToListAsync();
+
+        return (items, totalCount);
+    }
+
     public async Task<StaffMember?> GetByIdAsync(Guid id)
     {
         _logger.LogInformation("Fetching staff member {StaffId}", id);
@@ -61,5 +81,24 @@ public class StaffService : IStaffService
         await _db.SaveChangesAsync();
         _logger.LogInformation("Staff member {StaffId} soft-deleted", id);
         return true;
+    }
+
+    private static IQueryable<StaffMember> ApplySorting(IQueryable<StaffMember> query, string? sortBy, bool sortDescending)
+    {
+        var sortField = string.IsNullOrWhiteSpace(sortBy) ? "lastName" : sortBy.Trim().ToLowerInvariant();
+
+        return (sortField, sortDescending) switch
+        {
+            ("firstname", false) => query.OrderBy(s => s.FirstName).ThenBy(s => s.LastName),
+            ("firstname", true) => query.OrderByDescending(s => s.FirstName).ThenByDescending(s => s.LastName),
+            ("email", false) => query.OrderBy(s => s.Email),
+            ("email", true) => query.OrderByDescending(s => s.Email),
+            ("role", false) => query.OrderBy(s => s.Role),
+            ("role", true) => query.OrderByDescending(s => s.Role),
+            ("isavailable", false) => query.OrderBy(s => s.IsAvailable),
+            ("isavailable", true) => query.OrderByDescending(s => s.IsAvailable),
+            ("lastname", true) => query.OrderByDescending(s => s.LastName).ThenByDescending(s => s.FirstName),
+            _ => query.OrderBy(s => s.LastName).ThenBy(s => s.FirstName)
+        };
     }
 }

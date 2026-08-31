@@ -31,6 +31,37 @@ public class StaffMembersController : ControllerBase
         return Ok(await _service.GetAllAsync());
     }
 
+    [HttpGet("query")]
+    public async Task<ActionResult<object>> Query(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        [FromQuery] string? sortBy = "lastName",
+        [FromQuery] string? sortDir = "asc")
+    {
+        if (page < 1)
+        {
+            return BadRequest("page must be at least 1.");
+        }
+
+        if (pageSize is < 1 or > 200)
+        {
+            return BadRequest("pageSize must be between 1 and 200.");
+        }
+
+        var descending = string.Equals(sortDir, "desc", StringComparison.OrdinalIgnoreCase);
+        var result = await _service.QueryAsync(page, pageSize, sortBy, descending);
+
+        return Ok(new
+        {
+            items = result.Items,
+            totalCount = result.TotalCount,
+            page,
+            pageSize,
+            sortBy,
+            sortDir = descending ? "desc" : "asc"
+        });
+    }
+
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<StaffMember>> GetById(Guid id)
     {
